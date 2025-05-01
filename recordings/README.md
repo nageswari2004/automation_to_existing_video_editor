@@ -7,6 +7,8 @@ This directory contains screen recordings demonstrating the functionality of the
 - `features/` - Contains recordings of main application features
   - `project_demo_20250501.mp4` - Complete project demonstration
   - `speed_adjustment_20250501.mp4` - Video speed adjustment feature demonstration
+  - `video_trimming_20250501.mp4` - Video trimming feature demonstration
+  - `video_trimming_demo_20250501.mp4` - Additional video trimming demonstration
 - `authentication/` - Contains recordings of user authentication features
 - `errors/` - Contains recordings of error handling and edge cases
 
@@ -30,6 +32,26 @@ This directory contains screen recordings demonstrating the functionality of the
   - 1.5x speed modification
   - Preview functionality
   - Output quality demonstration
+
+### Video Trimming Feature (video_trimming_20250501.mp4)
+- Date: May 1, 2025
+- Duration: [Add duration]
+- Content: Demonstration of video trimming functionality
+- Features Shown:
+  - Trimming interface
+  - Timeline selection
+  - Preview functionality
+  - Output quality demonstration
+
+### Video Trimming Demo (video_trimming_demo_20250501.mp4)
+- Date: May 1, 2025
+- Duration: [Add duration]
+- Content: Additional demonstration of video trimming functionality
+- Features Shown:
+  - Advanced trimming techniques
+  - Multiple trim points
+  - Output format options
+  - Quality preservation
 
 ## How to View
 
