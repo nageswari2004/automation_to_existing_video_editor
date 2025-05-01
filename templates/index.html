@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Processing App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+        }
+        .landing-container {
+            background-color: white;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+        .hero-title {
+            font-size: 2.5rem;
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+        }
+        .hero-subtitle {
+            color: #7f8c8d;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        .btn-container {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+        .btn-custom {
+            padding: 0.8rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 30px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            border-color: #3498db;
+        }
+        .btn-outline-primary {
+            border-color: #3498db;
+            color: #3498db;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+            transform: translateY(-2px);
+        }
+        .btn-outline-primary:hover {
+            background-color: #3498db;
+            border-color: #3498db;
+            transform: translateY(-2px);
+        }
+        .features {
+            margin-top: 3rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1.5rem;
+        }
+        .feature-item {
+            padding: 1rem;
+        }
+        .feature-item i {
+            font-size: 2rem;
+            color: #3498db;
+            margin-bottom: 0.5rem;
+        }
+        .feature-item h3 {
+            font-size: 1.1rem;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        .feature-item p {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="landing-container">
+        <h1 class="hero-title">Video Processing App</h1>
+        <p class="hero-subtitle">
+            Transform your videos with advanced ML-powered processing, trimming, and enhancement tools.
+            Get started today and experience the future of video editing.
+        </p>
+        <div class="btn-container">
+            <a href="/login" class="btn btn-primary btn-custom">Login</a>
+            <a href="/signup" class="btn btn-outline-primary btn-custom">Sign Up</a>
+        </div>
+        <div class="features">
+            <div class="feature-item">
+                <i class="fas fa-magic"></i>
+                <h3>ML Enhancement</h3>
+                <p>AI-powered video enhancement</p>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-cut"></i>
+                <h3>Smart Trim</h3>
+                <p>Intelligent video trimming</p>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-video"></i>
+                <h3>Processing</h3>
+                <p>Advanced video processing</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

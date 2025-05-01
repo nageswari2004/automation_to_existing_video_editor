@@ -1,0 +1,9 @@
+flask==2.0.1
+moviepy==1.0.3
+Werkzeug==2.0.1
+opencv-python>=4.5.0
+numpy>=1.19.0
+torch>=1.9.0
+torchvision>=0.10.0
+flask-sqlalchemy==2.5.1
+sqlalchemy==1.4.23 

@@ -1,0 +1,10 @@
+.vercel
+__pycache__/
+*.pyc
+.env
+uploads/
+output/
+.venv/
+venv/
+node_modules/
+.DS_Store 

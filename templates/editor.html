@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Editor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --accent-color: #e74c3c;
+            --background-color: #f8fafc;
+            --card-background: #ffffff;
+            --text-color: #34495e;
+            --border-radius: 12px;
+        }
+
+        body {
+            background-color: var(--background-color);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text-color);
+        }
+
+        .navbar {
+            background-color: var(--secondary-color);
+            padding: 1rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            color: white !important;
+            font-weight: 600;
+            font-size: 1.5rem;
+        }
+
+        .nav-link {
+            color: rgba(255,255,255,0.8) !important;
+        }
+
+        .nav-link:hover {
+            color: white !important;
+        }
+
+        .container {
+            max-width: 1200px;
+            padding: 2rem 1rem;
+        }
+
+        .feature-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .feature-btn {
+            background: var(--card-background);
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: var(--border-radius);
+            color: var(--text-color);
+            font-weight: 500;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .feature-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .feature-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .feature-content {
+            background: var(--card-background);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .feature-content.active {
+            display: block;
+        }
+
+        .video-preview {
+            width: 100%;
+            border-radius: var(--border-radius);
+            margin: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .video-preview.active {
+            display: block;
+        }
+
+        .upload-placeholder {
+            background: #f8fafc;
+            border: 2px dashed #cbd5e1;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+            margin: 1rem 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .upload-placeholder:hover {
+            border-color: var(--primary-color);
+            background: #f1f5f9;
+        }
+
+        .upload-placeholder i {
+            font-size: 3rem;
+            color: #94a3b8;
+            margin-bottom: 1rem;
+        }
+
+        .upload-placeholder p {
+            color: #64748b;
+            margin: 0;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .output-section {
+            background: var(--card-background);
+            padding: 1.5rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .progress-container {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .progress {
+            height: 8px;
+            border-radius: 4px;
+            background-color: #e2e8f0;
+        }
+
+        .progress-bar {
+            background-color: var(--primary-color);
+        }
+
+        .status-message {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-video me-2"></i>Video Editor
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logout">
+                            <i class="fas fa-sign-out-alt me-1"></i>Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Upload Section -->
+                <div class="feature-content active" id="uploadContent">
+                    <h3><i class="fas fa-upload me-2"></i>Upload Video</h3>
+                    <div class="upload-placeholder" onclick="document.getElementById('videoInput').click()">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Click to upload a video or drag and drop</p>
+                    </div>
+                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
+                    <video id="videoPreview" class="video-preview" controls></video>
+                </div>
+
+                <!-- Feature Buttons -->
+                <div class="feature-buttons">
+                    <button class="feature-btn" onclick="showFeature('trim')">
+                        <i class="fas fa-cut"></i> Trim Video
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('merge')">
+                        <i class="fas fa-object-group"></i> Merge Videos
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('resize')">
+                        <i class="fas fa-expand"></i> Resize
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('speed')">
+                        <i class="fas fa-tachometer-alt"></i> Speed
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('extract-audio')">
+                        <i class="fas fa-music"></i> Extract Audio
+                    </button>
+                </div>
+
+                <!-- Feature Contents -->
+                <div class="feature-content" id="trimContent">
+                    <h3><i class="fas fa-cut me-2"></i>Trim Video</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Start Time (seconds)</label>
+                            <input type="number" id="startTime" class="form-control" step="0.1" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End Time (seconds)</label>
+                            <input type="number" id="endTime" class="form-control" step="0.1" min="0">
+                        </div>
+                    </div>
+                    <button onclick="trimVideo()" class="btn btn-primary mt-3">
+                        <i class="fas fa-cut me-2"></i>Trim Video
+                    </button>
+                </div>
+
+                <div class="feature-content" id="mergeContent">
+                    <h3><i class="fas fa-object-group me-2"></i>Merge Videos</h3>
+                    <div class="upload-placeholder" onclick="document.getElementById('mergeInput').click()">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Click to upload multiple videos or drag and drop</p>
+                    </div>
+                    <input type="file" id="mergeInput" accept="video/*" multiple style="display: none;">
+                    <div id="mergeFiles" class="mt-3"></div>
+                    <button onclick="mergeVideos()" class="btn btn-primary mt-3">
+                        <i class="fas fa-object-group me-2"></i>Merge Videos
+                    </button>
+                </div>
+
+                <div class="feature-content" id="resizeContent">
+                    <h3><i class="fas fa-expand me-2"></i>Resize Video</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Width (pixels)</label>
+                            <input type="number" id="width" class="form-control" min="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Height (pixels)</label>
+                            <input type="number" id="height" class="form-control" min="1">
+                        </div>
+                    </div>
+                    <button onclick="resizeVideo()" class="btn btn-primary mt-3">
+                        <i class="fas fa-expand me-2"></i>Resize Video
+                    </button>
+                </div>
+
+                <div class="feature-content" id="speedContent">
+                    <h3><i class="fas fa-tachometer-alt me-2"></i>Change Speed</h3>
+                    <div class="mb-3">
+                        <label class="form-label">Speed Factor (e.g., 0.5 for half speed, 2 for double speed)</label>
+                        <input type="number" id="speedFactor" class="form-control" step="0.1" min="0.1" value="1.0">
+                    </div>
+                    <button onclick="changeSpeed()" class="btn btn-primary">
+                        <i class="fas fa-tachometer-alt me-2"></i>Change Speed
+                    </button>
+                </div>
+
+                <div class="feature-content" id="extract-audioContent">
+                    <h3><i class="fas fa-music me-2"></i>Extract Audio</h3>
+                    <p>Extract audio from your video</p>
+                    <button onclick="extractAudio()" class="btn btn-primary">
+                        <i class="fas fa-music me-2"></i>Extract Audio
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <!-- Output Section -->
+                <div class="output-section">
+                    <h3><i class="fas fa-play-circle me-2"></i>Output Preview</h3>
+                    <video id="outputPreview" class="video-preview" controls></video>
+                    <div class="progress-container">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"></div>
+                        </div>
+                        <div class="status-message"></div>
+                    </div>
+                    <a id="downloadBtn" class="btn btn-primary w-100 mt-3" style="display: none;">
+                        <i class="fas fa-download me-2"></i>Download
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentVideo = null;
+        let mergeFiles = [];
+
+        function showFeature(feature) {
+            document.querySelectorAll('.feature-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.feature-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(feature + 'Content').classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // File upload handling
+        document.getElementById('videoInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                currentVideo = file;
+                const videoPreview = document.getElementById('videoPreview');
+                videoPreview.src = URL.createObjectURL(file);
+                videoPreview.classList.add('active');
+            }
+        });
+
+        // Merge files handling
+        document.getElementById('mergeInput').addEventListener('change', function(e) {
+            mergeFiles = Array.from(e.target.files);
+            const mergeFilesDiv = document.getElementById('mergeFiles');
+            mergeFilesDiv.innerHTML = mergeFiles.map(file => 
+                `<div class="alert alert-info">${file.name}</div>`
+            ).join('');
+        });
+
+        // Progress handling
+        function showProgress(show = true) {
+            document.querySelector('.progress-container').style.display = show ? 'block' : 'none';
+        }
+
+        function updateProgress(percent, message) {
+            document.querySelector('.progress-bar').style.width = `${percent}%`;
+            document.querySelector('.status-message').textContent = message;
+        }
+
+        // Video processing functions
+        async function trimVideo() {
+            if (!currentVideo) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+
+            const formData = new FormData();
+            formData.append('file', currentVideo);
+            formData.append('start_time', startTime);
+            formData.append('end_time', endTime);
+
+            showProgress();
+            updateProgress(0, 'Processing video...');
+
+            try {
+                const response = await fetch('/trim', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Video processed successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function mergeVideos() {
+            if (mergeFiles.length < 2) {
+                alert('Please select at least 2 videos to merge');
+                return;
+            }
+
+            const formData = new FormData();
+            mergeFiles.forEach(file => {
+                formData.append('files', file);
+            });
+
+            showProgress();
+            updateProgress(0, 'Merging videos...');
+
+            try {
+                const response = await fetch('/merge', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Videos merged successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function resizeVideo() {
+            if (!currentVideo) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            const width = document.getElementById('width').value;
+            const height = document.getElementById('height').value;
+
+            const formData = new FormData();
+            formData.append('file', currentVideo);
+            formData.append('width', width);
+            formData.append('height', height);
+
+            showProgress();
+            updateProgress(0, 'Resizing video...');
+
+            try {
+                const response = await fetch('/resize', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Video resized successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function changeSpeed() {
+            if (!currentVideo) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            const speedFactor = document.getElementById('speedFactor').value;
+
+            const formData = new FormData();
+            formData.append('file', currentVideo);
+            formData.append('speed_factor', speedFactor);
+
+            showProgress();
+            updateProgress(0, 'Changing video speed...');
+
+            try {
+                const response = await fetch('/change-speed', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Video speed changed successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function extractAudio() {
+            if (!currentVideo) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', currentVideo);
+
+            showProgress();
+            updateProgress(0, 'Extracting audio...');
+
+            try {
+                const response = await fetch('/extract-audio', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Audio extracted successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        function showOutput(videoUrl) {
+            const outputPreview = document.getElementById('outputPreview');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            outputPreview.src = videoUrl;
+            outputPreview.classList.add('active');
+            
+            downloadBtn.href = videoUrl;
+            downloadBtn.style.display = 'block';
+        }
+
+        // Drag and drop handling
+        const uploadPlaceholder = document.querySelector('.upload-placeholder');
+
+        uploadPlaceholder.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadPlaceholder.style.borderColor = 'var(--primary-color)';
+        });
+
+        uploadPlaceholder.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadPlaceholder.style.borderColor = '#cbd5e1';
+        });
+
+        uploadPlaceholder.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadPlaceholder.style.borderColor = '#cbd5e1';
+            
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('video/')) {
+                document.getElementById('videoInput').files = e.dataTransfer.files;
+                const event = new Event('change');
+                document.getElementById('videoInput').dispatchEvent(event);
+            }
+        });
+    </script>
+</body>
+</html> 
