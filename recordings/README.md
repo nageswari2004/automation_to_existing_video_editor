@@ -6,6 +6,7 @@ This directory contains screen recordings demonstrating the functionality of the
 
 - `features/` - Contains recordings of main application features
   - `project_demo_20250501.mp4` - Complete project demonstration
+  - `speed_adjustment_20250501.mp4` - Video speed adjustment feature demonstration
 - `authentication/` - Contains recordings of user authentication features
 - `errors/` - Contains recordings of error handling and edge cases
 
@@ -19,6 +20,16 @@ This directory contains screen recordings demonstrating the functionality of the
   - User interface overview
   - Video processing capabilities
   - Application workflow
+
+### Speed Adjustment Feature (speed_adjustment_20250501.mp4)
+- Date: May 1, 2025
+- Duration: [Add duration]
+- Content: Demonstration of video speed adjustment functionality
+- Features Shown:
+  - Speed adjustment interface
+  - 1.5x speed modification
+  - Preview functionality
+  - Output quality demonstration
 
 ## How to View
 
