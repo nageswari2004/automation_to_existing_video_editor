@@ -173,6 +173,49 @@
             color: var(--text-color);
             text-align: center;
         }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .feature-card {
+            padding: 15px;
+            margin: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .preview-area {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            min-height: 300px;
+        }
+        .advanced-features {
+            background: #f1f5f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .advanced-feature-card {
+            background: white;
+            padding: 15px;
+            margin: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .advanced-feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
@@ -202,11 +245,10 @@
                 <!-- Upload Section -->
                 <div class="feature-content active" id="uploadContent">
                     <h3><i class="fas fa-upload me-2"></i>Upload Video</h3>
-                    <div class="upload-placeholder" onclick="document.getElementById('videoInput').click()">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Click to upload a video or drag and drop</p>
+                    <div class="upload-area" id="uploadArea">
+                        <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTMyIDJDMTUuNDMxIDIgMiAxNS40MzEgMiAzMmMwIDE2LjU2OSAxMy40MzEgMzAgMzAgMzBzMzAtMTMuNDMxIDMwLTMwQzYyIDE1LjQzMSA0OC41NjkgMiAzMiAyem0wIDRjMTQuMzU5IDAgMjYgMTEuNjQxIDI2IDI2UzQ2LjM1OSA1OCAzMiA1OCA2IDQ2LjM1OSA2IDMyIDIxLjY0MSA2IDMyIDZ6bTAgOGMtMS4xMDQgMC0yIC44OTYtMiAydjE2aC0xNmMtMS4xMDQgMC0yIC44OTYtMiAyczAuODk2IDIgMiAyaDE2djE2YzAgMS4xMDQgMC44OTYgMiAyIDJzMi0wLjg5NiAyLTJWMzZoMTZjMS4xMDQgMCAyLTAuODk2IDItMnMtMC44OTYtMi0yLTJIMzRWMTZjMC0xLjEwNC0wLjg5Ni0yLTItMnoiIGZpbGw9IiM2NjY2NjYiLz48L3N2Zz4=" alt="Upload" style="width: 64px; height: 64px;">
+                        <p class="mt-3">Click to upload a video or drag and drop</p>
                     </div>
-                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
                     <video id="videoPreview" class="video-preview" controls></video>
                 </div>
 
@@ -226,6 +268,22 @@
                     </button>
                     <button class="feature-btn" onclick="showFeature('extract-audio')">
                         <i class="fas fa-music"></i> Extract Audio
+                    </button>
+                    <!-- New Feature Buttons -->
+                    <button class="feature-btn" onclick="showFeature('transition')">
+                        <i class="fas fa-film"></i> Transitions
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('color-grading')">
+                        <i class="fas fa-palette"></i> Color Grading
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('speed-ramp')">
+                        <i class="fas fa-bolt"></i> Speed Ramping
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('effects')">
+                        <i class="fas fa-magic"></i> Effects
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('animation')">
+                        <i class="fas fa-magic"></i> Animations
                     </button>
                 </div>
 
@@ -254,7 +312,10 @@
                         <p>Click to upload multiple videos or drag and drop</p>
                     </div>
                     <input type="file" id="mergeInput" accept="video/*" multiple style="display: none;">
-                    <div id="mergeFiles" class="mt-3"></div>
+                    <div id="mergeFiles" class="mt-3">
+                        <div class="selected-files"></div>
+                        <div class="video-previews"></div>
+                    </div>
                     <button onclick="mergeVideos()" class="btn btn-primary mt-3">
                         <i class="fas fa-object-group me-2"></i>Merge Videos
                     </button>
@@ -295,21 +356,123 @@
                         <i class="fas fa-music me-2"></i>Extract Audio
                     </button>
                 </div>
+
+                <!-- New Feature Contents -->
+                <div class="feature-content" id="transitionContent">
+                    <h3><i class="fas fa-film me-2"></i>Apply Transitions</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Transition Type</label>
+                            <select id="transitionType" class="form-control">
+                                <option value="fade">Fade</option>
+                                <option value="dissolve">Dissolve</option>
+                                <option value="wipe">Wipe</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Duration (seconds)</label>
+                            <input type="number" id="transitionDuration" class="form-control" step="0.1" min="0.1" value="1.0">
+                        </div>
+                    </div>
+                    <button onclick="applyTransition()" class="btn btn-primary mt-3">
+                        <i class="fas fa-film me-2"></i>Apply Transition
+                    </button>
+                </div>
+
+                <div class="feature-content" id="color-gradingContent">
+                    <h3><i class="fas fa-palette me-2"></i>Color Grading</h3>
+                    <div class="mb-3">
+                        <label class="form-label">Color Style</label>
+                        <select id="colorStyle" class="form-control">
+                            <option value="cinematic">Cinematic</option>
+                            <option value="vintage">Vintage</option>
+                            <option value="warm">Warm</option>
+                            <option value="cool">Cool</option>
+                            <option value="noir">Noir</option>
+                            <option value="vibrant">Vibrant</option>
+                        </select>
+                    </div>
+                    <button onclick="applyColorGrading()" class="btn btn-primary">
+                        <i class="fas fa-palette me-2"></i>Apply Color Grade
+                    </button>
+                </div>
+
+                <div class="feature-content" id="speed-rampContent">
+                    <h3><i class="fas fa-bolt me-2"></i>Speed Ramping</h3>
+                    <div class="mb-3">
+                        <label class="form-label">Target Speed</label>
+                        <input type="number" id="targetSpeed" class="form-control" step="0.1" min="0.1" value="1.5">
+                    </div>
+                    <button onclick="applySpeedRamping()" class="btn btn-primary">
+                        <i class="fas fa-bolt me-2"></i>Apply Speed Ramp
+                    </button>
+                </div>
+
+                <div class="feature-content" id="effectsContent">
+                    <h3><i class="fas fa-magic me-2"></i>Video Effects</h3>
+                    <div class="mb-3">
+                        <label class="form-label">Effect Type</label>
+                        <select id="effectType" class="form-control">
+                            <option value="freeze">Freeze Frame</option>
+                            <option value="motion_blur">Motion Blur</option>
+                            <option value="gaussian_blur">Gaussian Blur</option>
+                            <option value="sepia">Sepia</option>
+                            <option value="negative">Negative</option>
+                            <option value="mirror">Mirror</option>
+                            <option value="pixelate">Pixelate</option>
+                            <option value="edge_detection">Edge Detection</option>
+                        </select>
+                    </div>
+                    <button onclick="applyEffect()" class="btn btn-primary">
+                        <i class="fas fa-magic me-2"></i>Apply Effect
+                    </button>
+                </div>
+
+                <div class="feature-content" id="animationContent">
+                    <h3><i class="fas fa-magic me-2"></i>Apply Animation</h3>
+                    <div class="mb-3">
+                        <label class="form-label">Animation Type</label>
+                        <select id="animationType" class="form-control">
+                            <option value="zoom">Zoom In/Out</option>
+                            <option value="rotate">Rotation</option>
+                            <option value="slide">Slide</option>
+                            <option value="fade">Fade In/Out</option>
+                            <option value="bounce">Bounce</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Duration (seconds)</label>
+                        <input type="number" id="animationDuration" class="form-control" step="0.1" min="0.1" value="2.0">
+                    </div>
+                    <button onclick="applyAnimation()" class="btn btn-primary">
+                        <i class="fas fa-magic me-2"></i>Apply Animation
+                    </button>
+                </div>
             </div>
 
             <div class="col-lg-4">
                 <!-- Output Section -->
                 <div class="output-section">
                     <h3><i class="fas fa-play-circle me-2"></i>Output Preview</h3>
-                    <video id="outputPreview" class="video-preview" controls></video>
-                    <div class="progress-container">
+                    <div class="video-container">
+                        <video id="outputPreview" class="video-preview w-100" controls>
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    <div id="processedVideoOptions" class="form-check mt-3" style="display: none;">
+                        <input class="form-check-input" type="checkbox" id="useProcessedVideo">
+                        <label class="form-check-label" for="useProcessedVideo">
+                            Apply next effect to processed video
+                        </label>
+                    </div>
+                    <div class="progress-container mt-3" style="display: none;">
                         <div class="progress">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"></div>
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                         </div>
-                        <div class="status-message"></div>
+                        <div class="status-message text-center mt-2"></div>
                     </div>
                     <a id="downloadBtn" class="btn btn-primary w-100 mt-3" style="display: none;">
-                        <i class="fas fa-download me-2"></i>Download
+                        <i class="fas fa-download me-2"></i>Download Processed Video
                     </a>
                 </div>
             </div>
@@ -319,7 +482,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentVideo = null;
-        let mergeFiles = [];
+        let processedVideo = null; // To store the most recently processed video
+        let mergeFilesList = [];
 
         function showFeature(feature) {
             document.querySelectorAll('.feature-content').forEach(content => {
@@ -333,33 +497,173 @@
         }
 
         // File upload handling
-        document.getElementById('videoInput').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                currentVideo = file;
-                const videoPreview = document.getElementById('videoPreview');
+        const uploadArea = document.getElementById('uploadArea');
+
+        uploadArea.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'video/*';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    currentVideo = file;  // Set the currentVideo
+                    uploadArea.innerHTML = `
+                        <p>Selected file: ${file.name}</p>
+                        <small>Click to change video</small>
+                    `;
+                    // Show video preview
+                    const videoPreview = document.createElement('video');
+                    videoPreview.src = URL.createObjectURL(file);
+                    videoPreview.controls = true;
+                    videoPreview.style.maxWidth = '100%';
+                    videoPreview.style.marginTop = '20px';
+                    uploadArea.appendChild(videoPreview);
+                }
+            };
+            input.click();
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#007bff';
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '#ccc';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#ccc';
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('video/')) {
+                currentVideo = file;  // Set the currentVideo
+                uploadArea.innerHTML = `
+                    <p>Selected file: ${file.name}</p>
+                    <small>Click to change video</small>
+                `;
+                // Show video preview
+                const videoPreview = document.createElement('video');
                 videoPreview.src = URL.createObjectURL(file);
-                videoPreview.classList.add('active');
+                videoPreview.controls = true;
+                videoPreview.style.maxWidth = '100%';
+                videoPreview.style.marginTop = '20px';
+                uploadArea.appendChild(videoPreview);
             }
         });
 
-        // Merge files handling
+        // Handle merge files selection
         document.getElementById('mergeInput').addEventListener('change', function(e) {
-            mergeFiles = Array.from(e.target.files);
-            const mergeFilesDiv = document.getElementById('mergeFiles');
-            mergeFilesDiv.innerHTML = mergeFiles.map(file => 
-                `<div class="alert alert-info">${file.name}</div>`
-            ).join('');
+            const files = Array.from(e.target.files);
+            handleMergeFiles(files);
+        });
+
+        function handleMergeFiles(files) {
+            mergeFilesList = files;
+            const selectedFilesDiv = document.querySelector('#mergeFiles .selected-files');
+            const videoPreviewsDiv = document.querySelector('#mergeFiles .video-previews');
+            
+            // Clear previous content
+            selectedFilesDiv.innerHTML = '';
+            videoPreviewsDiv.innerHTML = '';
+
+            // Show selected files with preview
+            files.forEach((file, index) => {
+                // Create file item
+                const fileItem = document.createElement('div');
+                fileItem.className = 'alert alert-info d-flex justify-content-between align-items-center';
+                fileItem.innerHTML = `
+                    <span>${index + 1}. ${file.name}</span>
+                    <button class="btn btn-sm btn-danger" onclick="removeFile(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                selectedFilesDiv.appendChild(fileItem);
+
+                // Create video preview
+                const videoPreview = document.createElement('video');
+                videoPreview.src = URL.createObjectURL(file);
+                videoPreview.controls = true;
+                videoPreview.style.maxWidth = '200px';
+                videoPreview.style.margin = '10px';
+                videoPreviewsDiv.appendChild(videoPreview);
+            });
+        }
+
+        function removeFile(index) {
+            mergeFilesList = mergeFilesList.filter((_, i) => i !== index);
+            handleMergeFiles(mergeFilesList);
+        }
+
+        async function mergeVideos() {
+            if (mergeFilesList.length < 2) {
+                alert('Please select at least 2 videos to merge');
+                return;
+            }
+
+            const formData = new FormData();
+            mergeFilesList.forEach(file => {
+                formData.append('files[]', file);
+            });
+
+            showProgress();
+            updateProgress(0, 'Merging videos...');
+
+            try {
+                const response = await fetch('/merge', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Videos merged successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        // Add drag and drop for merge
+        const mergeDropArea = document.querySelector('#mergeContent .upload-placeholder');
+
+        mergeDropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            mergeDropArea.style.borderColor = '#007bff';
+        });
+
+        mergeDropArea.addEventListener('dragleave', () => {
+            mergeDropArea.style.borderColor = '#ccc';
+        });
+
+        mergeDropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            mergeDropArea.style.borderColor = '#ccc';
+            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('video/'));
+            if (files.length > 0) {
+                handleMergeFiles(files);
+            }
         });
 
         // Progress handling
         function showProgress(show = true) {
-            document.querySelector('.progress-container').style.display = show ? 'block' : 'none';
+            const progressContainer = document.querySelector('.progress-container');
+            if (progressContainer) {
+                progressContainer.style.display = show ? 'block' : 'none';
+            }
         }
 
         function updateProgress(percent, message) {
-            document.querySelector('.progress-bar').style.width = `${percent}%`;
-            document.querySelector('.status-message').textContent = message;
+            const progressBar = document.querySelector('.progress-bar');
+            const statusMessage = document.querySelector('.status-message');
+            if (progressBar && statusMessage) {
+                progressBar.style.width = `${percent}%`;
+                statusMessage.textContent = message;
+                statusMessage.style.display = 'block';
+            }
         }
 
         // Video processing functions
@@ -389,38 +693,6 @@
 
                 if (result.success) {
                     updateProgress(100, 'Video processed successfully!');
-                    showOutput(`/output/${result.output_file}`);
-                } else {
-                    updateProgress(0, `Error: ${result.error}`);
-                }
-            } catch (error) {
-                updateProgress(0, `Error: ${error.message}`);
-            }
-        }
-
-        async function mergeVideos() {
-            if (mergeFiles.length < 2) {
-                alert('Please select at least 2 videos to merge');
-                return;
-            }
-
-            const formData = new FormData();
-            mergeFiles.forEach(file => {
-                formData.append('files', file);
-            });
-
-            showProgress();
-            updateProgress(0, 'Merging videos...');
-
-            try {
-                const response = await fetch('/merge', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    updateProgress(100, 'Videos merged successfully!');
                     showOutput(`/output/${result.output_file}`);
                 } else {
                     updateProgress(0, `Error: ${result.error}`);
@@ -528,41 +800,125 @@
             }
         }
 
-        function showOutput(videoUrl) {
+        // Add a new function to handle using original or processed video
+        function getVideoToProcess() {
+            const useProcessedVideo = document.getElementById('useProcessedVideo').checked;
+            return useProcessedVideo && processedVideo ? processedVideo : currentVideo;
+        }
+
+        // Update the showOutput function to store processed video
+        function showOutput(url) {
             const outputPreview = document.getElementById('outputPreview');
             const downloadBtn = document.getElementById('downloadBtn');
             
-            outputPreview.src = videoUrl;
-            outputPreview.classList.add('active');
-            
-            downloadBtn.href = videoUrl;
-            downloadBtn.style.display = 'block';
+            // Fetch and store the processed video
+            fetch(url)
+                .then(response => response.blob())
+                .then(blob => {
+                    processedVideo = new File([blob], 'processed_video.mp4', { type: 'video/mp4' });
+                    
+                    if (outputPreview) {
+                        outputPreview.src = url + '?t=' + new Date().getTime();
+                        outputPreview.style.display = 'block';
+                        outputPreview.load();
+                    }
+                    
+                    if (downloadBtn) {
+                        downloadBtn.href = url;
+                        downloadBtn.style.display = 'block';
+                        downloadBtn.download = url.split('/').pop();
+                    }
+
+                    // Show the checkbox after processing
+                    document.getElementById('processedVideoOptions').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching processed video:', error);
+                    updateProgress(0, 'Error loading video. Please try again.');
+                });
+
+            showProgress(false);
+            updateProgress(100, 'Processing completed successfully!');
         }
 
-        // Drag and drop handling
-        const uploadPlaceholder = document.querySelector('.upload-placeholder');
-
-        uploadPlaceholder.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadPlaceholder.style.borderColor = 'var(--primary-color)';
-        });
-
-        uploadPlaceholder.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            uploadPlaceholder.style.borderColor = '#cbd5e1';
-        });
-
-        uploadPlaceholder.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadPlaceholder.style.borderColor = '#cbd5e1';
-            
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('video/')) {
-                document.getElementById('videoInput').files = e.dataTransfer.files;
-                const event = new Event('change');
-                document.getElementById('videoInput').dispatchEvent(event);
+        // Add this function to handle video errors
+        document.addEventListener('DOMContentLoaded', function() {
+            const outputPreview = document.getElementById('outputPreview');
+            if (outputPreview) {
+                outputPreview.addEventListener('error', function(e) {
+                    console.error('Video loading error:', e);
+                    updateProgress(0, 'Error loading video. Please try again.');
+                });
             }
         });
+
+        // Update the effect application functions to use getVideoToProcess
+        async function applyEffect() {
+            const videoToProcess = getVideoToProcess();
+            if (!videoToProcess) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            const effectType = document.getElementById('effectType').value;
+
+            const formData = new FormData();
+            formData.append('file', videoToProcess);
+            formData.append('effect_type', effectType);
+
+            showProgress();
+            updateProgress(0, 'Applying effect...');
+
+            try {
+                const response = await fetch('/apply-effects', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Effect applied successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function applyAnimation() {
+            const videoToProcess = getVideoToProcess();
+            if (!videoToProcess) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', videoToProcess);
+            formData.append('animation_type', document.getElementById('animationType').value);
+            formData.append('duration', document.getElementById('animationDuration').value);
+
+            showProgress();
+            updateProgress(0, 'Applying animation...');
+
+            try {
+                const response = await fetch('/apply-animation', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Animation applied successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
     </script>
 </body>
 </html> 

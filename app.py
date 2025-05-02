@@ -5,7 +5,9 @@ from pathlib import Path
 from werkzeug.utils import secure_filename
 from functools import wraps
 from ml_processor import MLVideoProcessor
+from ml_enhancements import MLVideoEnhancer
 from models import db, User
+import time
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Generate a secure random key
@@ -165,32 +167,75 @@ def trim_video():
 @login_required
 def merge_videos():
     try:
-        if 'files' not in request.files:
+        if 'files[]' not in request.files:
             return jsonify({"success": False, "error": "No files provided"})
         
-        files = request.files.getlist('files')
+        files = request.files.getlist('files[]')
         if len(files) < 2:
             return jsonify({"success": False, "error": "At least 2 files required"})
         
+        # Create a list to store paths of uploaded files
+        input_paths = []
         clips = []
+        
+        # Save all uploaded files and create video clips
         for file in files:
-            if file.filename:
-                input_path = get_video_path(file.filename)
+            if file and file.filename:
+                # Secure the filename and save the file
+                filename = secure_filename(file.filename)
+                input_path = os.path.join(UPLOAD_FOLDER, filename)
                 file.save(input_path)
-                clips.append(mp.VideoFileClip(input_path))
+                input_paths.append(input_path)
+                
+                try:
+                    # Load the video clip
+                    clip = mp.VideoFileClip(input_path)
+                    clips.append(clip)
+                except Exception as e:
+                    # Clean up any loaded clips
+                    for c in clips:
+                        c.close()
+                    return jsonify({"success": False, "error": f"Error loading video {filename}: {str(e)}"})
         
-        final_clip = mp.concatenate_videoclips(clips)
-        output_file = "merged_video.mp4"
-        output_path = get_output_path(output_file)
-        final_clip.write_videofile(output_path)
-        
-        for clip in clips:
-            clip.close()
-        final_clip.close()
-        
-        return jsonify({"success": True, "output_file": output_file})
+        try:
+            # Concatenate all clips
+            final_clip = mp.concatenate_videoclips(clips, method="compose")
+            
+            # Generate output filename
+            output_file = f"merged_video_{int(time.time())}.mp4"
+            output_path = os.path.join(OUTPUT_FOLDER, output_file)
+            
+            # Write the final video
+            final_clip.write_videofile(output_path, 
+                                    codec='libx264', 
+                                    audio_codec='aac',
+                                    temp_audiofile='temp-audio.m4a',
+                                    remove_temp=True)
+            
+            # Clean up
+            final_clip.close()
+            for clip in clips:
+                clip.close()
+            
+            # Clean up input files
+            for path in input_paths:
+                try:
+                    os.remove(path)
+                except:
+                    pass
+                    
+            return jsonify({"success": True, "output_file": output_file})
+            
+        except Exception as e:
+            # Clean up clips in case of error
+            for clip in clips:
+                try:
+                    clip.close()
+                except:
+                    pass
+            return jsonify({"success": False, "error": f"Error merging videos: {str(e)}"})
+            
     except Exception as e:
-        print(f"Error in merge_videos: {str(e)}")  # Debug log
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/extract-audio', methods=['POST'])
@@ -286,6 +331,234 @@ def resize_video():
         return jsonify({"success": True, "output_file": output_file})
     except Exception as e:
         print(f"Error in resize_video: {str(e)}")  # Debug log
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/apply-transition', methods=['POST'])
+@login_required
+def apply_transition():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file provided"})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "error": "No file selected"})
+        
+        # Get transition parameters
+        transition_type = request.form.get('transition_type', 'fade')
+        duration = float(request.form.get('duration', 1.0))
+        
+        # Save the uploaded file
+        input_path = get_video_path(file.filename)
+        file.save(input_path)
+        
+        # Process video
+        enhancer = MLVideoEnhancer()
+        output_file = f"transition_{file.filename}"
+        output_path = get_output_path(output_file)
+        
+        # Apply transition
+        video = enhancer.apply_transition(input_path, transition_type, duration)
+        video.write_videofile(output_path)
+        
+        return jsonify({"success": True, "output_file": output_file})
+    except Exception as e:
+        print(f"Error in apply_transition: {str(e)}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/apply-color-grading', methods=['POST'])
+@login_required
+def apply_color_grading():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file provided"})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "error": "No file selected"})
+        
+        # Get color grading parameters
+        style = request.form.get('style', 'cinematic')
+        
+        # Save the uploaded file
+        input_path = get_video_path(file.filename)
+        file.save(input_path)
+        
+        # Process video
+        enhancer = MLVideoEnhancer()
+        output_file = f"graded_{file.filename}"
+        output_path = get_output_path(output_file)
+        
+        # Apply color grading
+        video = enhancer.apply_color_grading(input_path, style)
+        video.write_videofile(output_path)
+        
+        return jsonify({"success": True, "output_file": output_file})
+    except Exception as e:
+        print(f"Error in apply_color_grading: {str(e)}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/apply-speed-ramping', methods=['POST'])
+@login_required
+def apply_speed_ramping():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file provided"})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "error": "No file selected"})
+        
+        # Get speed ramping parameters
+        try:
+            target_speed = float(request.form.get('target_speed', 1.5))
+            if target_speed <= 0:
+                return jsonify({"success": False, "error": "Target speed must be greater than 0"})
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid target speed value"})
+        
+        # Save the uploaded file
+        input_path = get_video_path(file.filename)
+        file.save(input_path)
+        
+        try:
+            # Process video
+            enhancer = MLVideoEnhancer()
+            output_file = f"ramped_{file.filename}"
+            output_path = get_output_path(output_file)
+            
+            # Apply speed ramping
+            video = enhancer.apply_speed_ramping(input_path, target_speed)
+            
+            # Write the processed video
+            video.write_videofile(output_path,
+                                codec='libx264',
+                                audio_codec='aac',
+                                temp_audiofile='temp-audio.m4a',
+                                remove_temp=True)
+            
+            # Clean up
+            video.close()
+            
+            # Clean up input file
+            try:
+                os.remove(input_path)
+            except:
+                pass
+                
+            return jsonify({"success": True, "output_file": output_file})
+            
+        except Exception as e:
+            # Clean up any resources
+            try:
+                video.close()
+            except:
+                pass
+            try:
+                os.remove(input_path)
+            except:
+                pass
+            return jsonify({"success": False, "error": f"Error processing video: {str(e)}"})
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/apply-effects', methods=['POST'])
+@login_required
+def apply_effects():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file provided"})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "error": "No file selected"})
+        
+        # Get effect parameters
+        effect_type = request.form.get('effect_type', 'freeze')
+        
+        # Save the uploaded file
+        input_path = get_video_path(file.filename)
+        file.save(input_path)
+        
+        # Process video
+        enhancer = MLVideoEnhancer()
+        output_file = f"effect_{file.filename}"
+        output_path = get_output_path(output_file)
+        
+        # Apply effect
+        video = enhancer.apply_effects(input_path, effect_type)
+        video.write_videofile(output_path)
+        
+        return jsonify({"success": True, "output_file": output_file})
+    except Exception as e:
+        print(f"Error in apply_effects: {str(e)}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/apply-animation', methods=['POST'])
+@login_required
+def apply_animation():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file provided"})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "error": "No file selected"})
+        
+        # Get animation parameters
+        animation_type = request.form.get('animation_type', 'zoom')
+        try:
+            duration = float(request.form.get('duration', 2.0))
+            if duration <= 0:
+                return jsonify({"success": False, "error": "Duration must be greater than 0"})
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid duration value"})
+        
+        # Save the uploaded file
+        input_path = get_video_path(file.filename)
+        file.save(input_path)
+        
+        try:
+            # Process video
+            enhancer = MLVideoEnhancer()
+            output_file = f"animated_{file.filename}"
+            output_path = get_output_path(output_file)
+            
+            # Apply animation
+            video = enhancer.apply_animation(input_path, animation_type, duration)
+            
+            # Write the processed video
+            video.write_videofile(output_path,
+                                codec='libx264',
+                                audio_codec='aac',
+                                temp_audiofile='temp-audio.m4a',
+                                remove_temp=True)
+            
+            # Clean up
+            video.close()
+            
+            # Clean up input file
+            try:
+                os.remove(input_path)
+            except:
+                pass
+                
+            return jsonify({"success": True, "output_file": output_file})
+            
+        except Exception as e:
+            # Clean up any resources
+            try:
+                video.close()
+            except:
+                pass
+            try:
+                os.remove(input_path)
+            except:
+                pass
+            return jsonify({"success": False, "error": f"Error processing video: {str(e)}"})
+            
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
 if __name__ == '__main__':
