@@ -552,12 +552,7 @@
             }
         });
 
-        // Handle merge files selection
-        document.getElementById('mergeInput').addEventListener('change', function(e) {
-            const files = Array.from(e.target.files);
-            handleMergeFiles(files);
-        });
-
+        // Update the handleMergeFiles function
         function handleMergeFiles(files) {
             mergeFilesList = files;
             const selectedFilesDiv = document.querySelector('#mergeFiles .selected-files');
@@ -571,7 +566,7 @@
             files.forEach((file, index) => {
                 // Create file item
                 const fileItem = document.createElement('div');
-                fileItem.className = 'alert alert-info d-flex justify-content-between align-items-center';
+                fileItem.className = 'alert alert-info d-flex justify-content-between align-items-center mb-2';
                 fileItem.innerHTML = `
                     <span>${index + 1}. ${file.name}</span>
                     <button class="btn btn-sm btn-danger" onclick="removeFile(${index})">
@@ -586,6 +581,7 @@
                 videoPreview.controls = true;
                 videoPreview.style.maxWidth = '200px';
                 videoPreview.style.margin = '10px';
+                videoPreview.className = 'video-preview';
                 videoPreviewsDiv.appendChild(videoPreview);
             });
         }
@@ -602,7 +598,7 @@
             }
 
             const formData = new FormData();
-            mergeFilesList.forEach(file => {
+            mergeFilesList.forEach((file, index) => {
                 formData.append('files[]', file);
             });
 
@@ -614,18 +610,39 @@
                     method: 'POST',
                     body: formData
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const result = await response.json();
 
                 if (result.success) {
                     updateProgress(100, 'Videos merged successfully!');
                     showOutput(`/output/${result.output_file}`);
+                    
+                    // Update currentVideo with the merged video
+                    fetch(`/output/${result.output_file}`)
+                        .then(response => response.blob())
+                        .then(blob => {
+                            currentVideo = new File([blob], 'merged_video.mp4', { type: 'video/mp4' });
+                        });
                 } else {
                     updateProgress(0, `Error: ${result.error}`);
                 }
             } catch (error) {
+                console.error('Merge error:', error);
                 updateProgress(0, `Error: ${error.message}`);
             }
         }
+
+        // Update the merge input handling
+        document.getElementById('mergeInput').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files).filter(file => file.type.startsWith('video/'));
+            if (files.length > 0) {
+                handleMergeFiles(files);
+            }
+        });
 
         // Add drag and drop for merge
         const mergeDropArea = document.querySelector('#mergeContent .upload-placeholder');
@@ -911,6 +928,76 @@
 
                 if (result.success) {
                     updateProgress(100, 'Animation applied successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function applyTransition() {
+            const videoToProcess = getVideoToProcess();
+            if (!videoToProcess) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            const transitionType = document.getElementById('transitionType').value;
+            const duration = document.getElementById('transitionDuration').value;
+
+            const formData = new FormData();
+            formData.append('file', videoToProcess);
+            formData.append('transition_type', transitionType);
+            formData.append('duration', duration);
+
+            showProgress();
+            updateProgress(0, 'Applying transition...');
+
+            try {
+                const response = await fetch('/apply-transition', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Transition applied successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function applySpeedRamping() {
+            const videoToProcess = getVideoToProcess();
+            if (!videoToProcess) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            const targetSpeed = document.getElementById('targetSpeed').value;
+
+            const formData = new FormData();
+            formData.append('file', videoToProcess);
+            formData.append('target_speed', targetSpeed);
+
+            showProgress();
+            updateProgress(0, 'Applying speed ramping...');
+
+            try {
+                const response = await fetch('/apply-speed-ramping', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100, 'Speed ramping applied successfully!');
                     showOutput(`/output/${result.output_file}`);
                 } else {
                     updateProgress(0, `Error: ${result.error}`);
