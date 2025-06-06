@@ -216,23 +216,55 @@
             transform: translateY(-5px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
+        .prompt-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .prompt-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .prompt-input input {
+            flex: 1;
+        }
+
+        .prompt-help {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .prompt-help ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .prompt-help li {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand" href="#">
-                <i class="fas fa-video me-2"></i>Video Editor
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Video Editor Pro</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/logout">
-                            <i class="fas fa-sign-out-alt me-1"></i>Logout
-                        </a>
+                        <a class="nav-link active" aria-current="page" href="{{ url_for('editor') }}">Single Video Features</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('multi_video_editor') }}">Multi-Video Features</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
                     </li>
                 </ul>
             </div>
@@ -256,9 +288,6 @@
                 <div class="feature-buttons">
                     <button class="feature-btn" onclick="showFeature('trim')">
                         <i class="fas fa-cut"></i> Trim Video
-                    </button>
-                    <button class="feature-btn" onclick="showFeature('merge')">
-                        <i class="fas fa-object-group"></i> Merge Videos
                     </button>
                     <button class="feature-btn" onclick="showFeature('resize')">
                         <i class="fas fa-expand"></i> Resize
@@ -285,6 +314,15 @@
                     <button class="feature-btn" onclick="showFeature('animation')">
                         <i class="fas fa-magic"></i> Animations
                     </button>
+                    <button class="feature-btn" onclick="showFeature('pexels-clips')">
+                        <i class="fas fa-video"></i> Pexels Stock Clips
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('youtube-clips')">
+                        <i class="fab fa-youtube"></i> YouTube Clips
+                    </button>
+                    <button class="feature-btn" onclick="showFeature('dailymotion-clips')">
+                        <i class="fas fa-play-circle"></i> Dailymotion Clips
+                    </button>
                 </div>
 
                 <!-- Feature Contents -->
@@ -302,22 +340,6 @@
                     </div>
                     <button onclick="trimVideo()" class="btn btn-primary mt-3">
                         <i class="fas fa-cut me-2"></i>Trim Video
-                    </button>
-                </div>
-
-                <div class="feature-content" id="mergeContent">
-                    <h3><i class="fas fa-object-group me-2"></i>Merge Videos</h3>
-                    <div class="upload-placeholder" onclick="document.getElementById('mergeInput').click()">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Click to upload multiple videos or drag and drop</p>
-                    </div>
-                    <input type="file" id="mergeInput" accept="video/*" multiple style="display: none;">
-                    <div id="mergeFiles" class="mt-3">
-                        <div class="selected-files"></div>
-                        <div class="video-previews"></div>
-                    </div>
-                    <button onclick="mergeVideos()" class="btn btn-primary mt-3">
-                        <i class="fas fa-object-group me-2"></i>Merge Videos
                     </button>
                 </div>
 
@@ -447,6 +469,75 @@
                     <button onclick="applyAnimation()" class="btn btn-primary">
                         <i class="fas fa-magic me-2"></i>Apply Animation
                     </button>
+                </div>
+
+                <div class="prompt-section">
+                    <h3>Text Commands</h3>
+                    <div class="prompt-input">
+                        <input type="text" id="promptInput" placeholder="Enter your command (e.g., 'trim 10 to 20', 'speed 1.5x', 'resize to 1920x1080')" class="form-control">
+                        <button onclick="processPrompt()" class="btn btn-primary">Process</button>
+                    </div>
+                    <div class="prompt-help">
+                        <h4>Available Commands:</h4>
+                        <ul>
+                            <li>trim [start] to [end] - Trim video between timestamps</li>
+                            <li>speed [factor]x - Change video speed</li>
+                            <li>resize to [width]x[height] - Resize video</li>
+                            <li>extract audio - Extract audio from video</li>
+                            <li>add [type] transition for [duration]s - Add transition effect</li>
+                            <li>apply [style] color grading - Apply color grading</li>
+                            <li>add [type] effect - Add special effect</li>
+                            <li>add [type] animation for [duration]s - Add animation</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Add Pexels Stock Clips Search Content -->
+                <div class="feature-content" id="pexels-clipsContent">
+                    <h3><i class="fas fa-video me-2"></i>Find Stock Clips (Pexels)</h3>
+                    <div class="form-group">
+                        <label for="pexelsScriptDescription">Describe your scene or keyword:</label>
+                        <textarea id="pexelsScriptDescription" class="form-control" rows="3" placeholder="E.g. 'nature', 'city night', 'business meeting'"></textarea>
+                    </div>
+                    <button class="btn btn-primary mt-3" onclick="searchPexelsClips()">
+                        <i class="fas fa-search me-2"></i>Search Pexels Clips
+                    </button>
+                    <div id="pexelsResults" class="mt-4" style="display: none;">
+                        <h4>Pexels Stock Clips</h4>
+                        <div id="pexelsClipsList" class="row"></div>
+                    </div>
+                </div>
+
+                <!-- Add YouTube Clips Search Content -->
+                <div class="feature-content" id="youtube-clipsContent">
+                    <h3><i class="fab fa-youtube me-2"></i>Find YouTube Clips</h3>
+                    <div class="form-group">
+                        <label for="youtubeScriptDescription">Describe what you're looking for:</label>
+                        <textarea id="youtubeScriptDescription" class="form-control" rows="3" placeholder="E.g. 'cats playing', 'sunset timelapse', 'city night'"></textarea>
+                    </div>
+                    <button class="btn btn-primary mt-3" onclick="searchYouTubeClips()">
+                        <i class="fas fa-search me-2"></i>Search YouTube Clips
+                    </button>
+                    <div id="youtubeResults" class="mt-4" style="display: none;">
+                        <h4>YouTube Clips</h4>
+                        <div class="row" id="youtubeClipsContainer"></div>
+                    </div>
+                </div>
+
+                <!-- Add Dailymotion Clips Search Content -->
+                <div class="feature-content" id="dailymotion-clipsContent">
+                    <h3><i class="fas fa-play-circle me-2"></i>Find Dailymotion Clips</h3>
+                    <div class="form-group">
+                        <label for="dailymotionScriptDescription">Describe what you're looking for:</label>
+                        <textarea id="dailymotionScriptDescription" class="form-control" rows="3" placeholder="E.g. 'cats playing', 'sunset timelapse', 'city night'"></textarea>
+                    </div>
+                    <button class="btn btn-primary mt-3" onclick="searchDailymotionClips()">
+                        <i class="fas fa-search me-2"></i>Search Dailymotion Clips
+                    </button>
+                    <div id="dailymotionResults" class="mt-4" style="display: none;">
+                        <h4>Dailymotion Clips</h4>
+                        <div class="row" id="dailymotionClipsContainer"></div>
+                    </div>
                 </div>
             </div>
 
@@ -608,11 +699,26 @@
             try {
                 const response = await fetch('/merge', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'  // Include cookies in the request
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                // Check if we need to redirect to login
+                if (response.status === 401) {
+                    const data = await response.json();
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                        return;
+                    }
+                }
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server returned non-JSON response');
                 }
 
                 const result = await response.json();
@@ -720,38 +826,35 @@
         }
 
         async function resizeVideo() {
-            if (!currentVideo) {
-                alert('Please upload a video first');
+            const width = document.getElementById('width').value;
+            const height = document.getElementById('height').value;
+            
+            if (!width || !height) {
+                alert('Please enter both width and height');
                 return;
             }
 
-            const width = document.getElementById('width').value;
-            const height = document.getElementById('height').value;
-
             const formData = new FormData();
-            formData.append('file', currentVideo);
             formData.append('width', width);
             formData.append('height', height);
 
-            showProgress();
-            updateProgress(0, 'Resizing video...');
-
-            try {
-                const response = await fetch('/resize', {
+            fetch('/resize-video', {
                     method: 'POST',
                     body: formData
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    updateProgress(100, 'Video resized successfully!');
-                    showOutput(`/output/${result.output_file}`);
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Video resized successfully!');
+                    location.reload();
                 } else {
-                    updateProgress(0, `Error: ${result.error}`);
+                    alert('Error resizing video: ' + data.error);
                 }
-            } catch (error) {
-                updateProgress(0, `Error: ${error.message}`);
-            }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error resizing video');
+            });
         }
 
         async function changeSpeed() {
@@ -1003,6 +1106,702 @@
                     updateProgress(0, `Error: ${result.error}`);
                 }
             } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function processPrompt() {
+            console.log("Starting processPrompt function");  // Debug log
+            
+            if (!currentVideo) {
+                console.log("No video selected");  // Debug log
+                alert('Please upload a video first');
+                return;
+            }
+
+            const prompt = document.getElementById('promptInput').value.trim();
+            console.log("Prompt:", prompt);  // Debug log
+            
+            if (!prompt) {
+                console.log("Empty prompt");  // Debug log
+                alert('Please enter a command');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', currentVideo);
+            formData.append('prompt', prompt);
+            
+            console.log("Sending request to /process-prompt");  // Debug log
+            showProgress();
+            updateProgress(0, 'Processing video...');
+
+            try {
+                const response = await fetch('/process-prompt', {
+                    method: 'POST',
+                    body: formData
+                });
+                console.log("Received response:", response.status);  // Debug log
+                
+                const result = await response.json();
+                console.log("Response data:", result);  // Debug log
+
+                if (result.success) {
+                    console.log("Processing successful");  // Debug log
+                    updateProgress(100, 'Video processed successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    console.log("Processing failed:", result.error);  // Debug log
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error("Error in processPrompt:", error);  // Debug log
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        function handleMainVideoUpload(input) {
+            const file = input.files[0];
+            if (file) {
+                const preview = document.querySelector('#mainVideoPreview video');
+                const nameDisplay = document.getElementById('mainVideoName');
+                const uploadPlaceholder = document.getElementById('mainVideoUpload');
+                
+                // Update preview
+                preview.src = URL.createObjectURL(file);
+                nameDisplay.textContent = file.name;
+                document.getElementById('mainVideoPreview').style.display = 'block';
+                uploadPlaceholder.style.display = 'none';
+                
+                // Enable apply button if both videos are uploaded
+                checkOverlayReady();
+            }
+        }
+
+        function handleOverlayVideoUpload(input) {
+            const file = input.files[0];
+            if (file) {
+                const preview = document.querySelector('#overlayVideoPreview video');
+                const nameDisplay = document.getElementById('overlayVideoName');
+                const uploadPlaceholder = document.getElementById('overlayVideoUpload');
+                
+                // Update preview
+                preview.src = URL.createObjectURL(file);
+                nameDisplay.textContent = file.name;
+                document.getElementById('overlayVideoPreview').style.display = 'block';
+                uploadPlaceholder.style.display = 'none';
+                
+                // Enable apply button if both videos are uploaded
+                checkOverlayReady();
+            }
+        }
+
+        function checkOverlayReady() {
+            const mainVideo = document.getElementById('mainVideoInput').files[0];
+            const overlayVideo = document.getElementById('overlayVideoInput').files[0];
+            const applyButton = document.getElementById('applyOverlayBtn');
+            
+            applyButton.disabled = !(mainVideo && overlayVideo);
+        }
+
+        async function applyOverlay() {
+            const mainVideo = document.getElementById('mainVideoInput').files[0];
+            const overlayVideo = document.getElementById('overlayVideoInput').files[0];
+            const xPos = document.getElementById('overlayX').value;
+            const yPos = document.getElementById('overlayY').value;
+            
+            if (!mainVideo || !overlayVideo) {
+                alert('Please upload both videos first');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', mainVideo);
+            formData.append('overlay', overlayVideo);
+            formData.append('prompt', `overlay at ${xPos},${yPos}`);
+            
+            // Show progress
+            const progressBar = document.getElementById('overlayProgress');
+            const progressBarInner = progressBar.querySelector('.progress-bar');
+            const statusDiv = document.getElementById('overlayStatus');
+            progressBar.style.display = 'flex';
+            statusDiv.textContent = 'Processing...';
+            
+            try {
+                const response = await fetch('/process-prompt', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    progressBarInner.style.width = '100%';
+                    statusDiv.textContent = 'Processing complete!';
+                    
+                    // Show the output video in the preview area
+                    const outputPreview = document.getElementById('outputPreview');
+                    const outputUrl = `/output/${result.output_file}`;
+                    outputPreview.src = outputUrl + '?t=' + new Date().getTime(); // Add timestamp to prevent caching
+                    outputPreview.style.display = 'block';
+                    outputPreview.load(); // Force the video to load
+                    
+                    // Show download button
+                    const downloadBtn = document.getElementById('downloadBtn');
+                    downloadBtn.href = outputUrl;
+                    downloadBtn.style.display = 'block';
+                    downloadBtn.download = result.output_file;
+                    
+                    // Store the processed video for potential further processing
+                    fetch(outputUrl)
+                        .then(response => response.blob())
+                        .then(blob => {
+                            processedVideo = new File([blob], result.output_file, { type: 'video/mp4' });
+                            // Show the checkbox for using processed video
+                            document.getElementById('processedVideoOptions').style.display = 'block';
+                        });
+                    
+                    // Add download link in status div
+                    statusDiv.innerHTML += `<br><a href="${outputUrl}" class="btn btn-success mt-2" download>Download Result</a>`;
+                } else {
+                    throw new Error(result.error || 'Processing failed');
+                }
+            } catch (error) {
+                progressBar.style.display = 'none';
+                statusDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function searchPexelsClips() {
+            const scriptDescription = document.getElementById('pexelsScriptDescription').value.trim();
+            if (!scriptDescription) {
+                alert('Please enter a description');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('script_description', scriptDescription);
+            fetch('/search-pexels-clips', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayPexelsResults(data.clips);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while searching for Pexels clips');
+            });
+        }
+
+        function displayPexelsResults(clips) {
+            const resultsDiv = document.getElementById('pexelsResults');
+            const clipsList = document.getElementById('pexelsClipsList');
+            clipsList.innerHTML = '';
+            if (!clips.length) {
+                clipsList.innerHTML = '<div class="col-12">No clips found.</div>';
+            }
+            clips.forEach((clip, idx) => {
+                const clipCard = document.createElement('div');
+                clipCard.className = 'col-md-6 mb-4';
+                clipCard.innerHTML = `
+                    <div class="card h-100">
+                        <img src="${clip.thumbnail}" class="card-img-top" alt="Thumbnail" style="height: 200px; object-fit: cover;">
+                        <div class="card-body">
+                            <p class="card-text">By: ${clip.user}</p>
+                            <video controls style="width:100%; border-radius:8px;">
+                                <source src="${clip.url}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                            <div class="mt-2">
+                                <a href="${clip.url}" target="_blank" class="btn btn-primary btn-sm">Open Clip</a>
+                                <button class="btn btn-info btn-sm ms-2" onclick="downloadPexelsClip('${clip.url}')">
+                                    <i class="fas fa-download me-2"></i>Download
+                                </button>
+                                <button class="btn btn-success btn-sm ms-2" onclick="integratePexelsClip('${clip.url}')">Add to My Video</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                clipsList.appendChild(clipCard);
+            });
+            resultsDiv.style.display = 'block';
+        }
+
+        async function integratePexelsClip(clipUrl) {
+            if (!currentVideo) {
+                alert('Please upload a video first');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', currentVideo);
+            formData.append('pexels_clip_url', clipUrl);
+            showProgress();
+            updateProgress(0, 'Merging with Pexels clip...');
+            try {
+                const response = await fetch('/merge-with-pexels', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    updateProgress(100, 'Merged successfully!');
+                    showOutput(`/output/${result.output_file}`);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        // Add the downloadPexelsClip function
+        async function downloadPexelsClip(clipUrl) {
+            showProgress();
+            updateProgress(0, 'Downloading Pexels clip...');
+
+            try {
+                const response = await fetch('/download-pexels-clip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ clip_url: clipUrl })
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // If not JSON, likely a redirect to login
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    updateProgress(100, 'Downloaded successfully!');
+                    showOutput(`/output/${result.filename}`);
+                    
+                    // Add merge button to the output section
+                    const outputSection = document.querySelector('.output-section');
+                    const existingMergeBtn = document.getElementById('mergeWithVideoBtn');
+                    if (existingMergeBtn) {
+                        existingMergeBtn.remove();
+                    }
+                    
+                    const mergeButton = document.createElement('button');
+                    mergeButton.id = 'mergeWithVideoBtn';
+                    mergeButton.className = 'btn btn-success w-100 mt-3';
+                    mergeButton.innerHTML = '<i class="fas fa-link me-2"></i>Merge with My Video';
+                    mergeButton.onclick = () => integratePexelsClip(clipUrl);
+                    outputSection.appendChild(mergeButton);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        async function searchYouTubeClips() {
+            const scriptDescription = document.getElementById('youtubeScriptDescription').value.trim();
+            if (!scriptDescription) {
+                alert('Please enter a description');
+                return;
+            }
+
+            showProgress();
+            updateProgress(0, 'Searching YouTube clips...');
+
+            try {
+                const response = await fetch('/search-youtube-clips', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ script_description: scriptDescription })
+                });
+
+                // Check if we need to redirect to login
+                if (response.status === 401) {
+                    const data = await response.json();
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                        return;
+                    }
+                }
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server returned non-JSON response. Please log in again.');
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    displayYouTubeResults(result.clips);
+                    updateProgress(100, 'Search completed!');
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateProgress(0, `Error: ${error.message}`);
+                // If we get a non-JSON response, redirect to login
+                if (error.message.includes('non-JSON response')) {
+                    window.location.href = '/login';
+                }
+            }
+        }
+
+        function displayYouTubeResults(clips) {
+            const resultsDiv = document.getElementById('youtubeResults');
+            const clipsContainer = document.getElementById('youtubeClipsContainer');
+            clipsContainer.innerHTML = '';
+
+            if (!clips || clips.length === 0) {
+                clipsContainer.innerHTML = '<div class="col-12">No clips found.</div>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+
+            clips.forEach(clip => {
+                const clipCard = document.createElement('div');
+                clipCard.className = 'col-md-6 mb-4';
+                clipCard.innerHTML = `
+                    <div class="card h-100">
+                        <img src="${clip.thumbnail}" class="card-img-top" alt="Thumbnail" style="height: 200px; object-fit: cover;">
+                        <div class="card-body">
+                            <h5 class="card-title">${clip.title}</h5>
+                            <p class="card-text">
+                                <small>By: ${clip.channel}</small><br>
+                                <small>Published: ${clip.published_at}</small>
+                            </p>
+                            <div class="mt-2 d-flex flex-wrap gap-2">
+                                <a href="${clip.watch_url}" target="_blank" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-play me-2"></i>Open Clip
+                                </a>
+                                <button class="btn btn-info btn-sm" onclick="downloadYouTubeClip('${clip.id}')">
+                                    <i class="fas fa-download me-2"></i>Download
+                                </button>
+                                <button class="btn btn-success btn-sm" onclick="addYouTubeToVideo('${clip.id}')">
+                                    <i class="fas fa-plus me-2"></i>Merge with My Video
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                clipsContainer.appendChild(clipCard);
+            });
+            resultsDiv.style.display = 'block';
+        }
+
+        async function downloadYouTubeClip(videoId) {
+            showProgress();
+            updateProgress(0, 'Downloading YouTube clip...');
+
+            try {
+                const response = await fetch('/download-youtube-clip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ video_id: videoId })
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // If not JSON, likely a redirect to login
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    updateProgress(100, 'Downloaded successfully!');
+                    showOutput(`/output/${result.filename}`);
+                    
+                    // Add merge button to the output section
+                    const outputSection = document.querySelector('.output-section');
+                    const existingMergeBtn = document.getElementById('mergeWithVideoBtn');
+                    if (existingMergeBtn) {
+                        existingMergeBtn.remove();
+                    }
+                    
+                    const mergeButton = document.createElement('button');
+                    mergeButton.id = 'mergeWithVideoBtn';
+                    mergeButton.className = 'btn btn-success w-100 mt-3';
+                    mergeButton.innerHTML = '<i class="fas fa-link me-2"></i>Merge with My Video';
+                    mergeButton.onclick = () => addYouTubeToVideo(videoId);
+                    outputSection.appendChild(mergeButton);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateProgress(0, `Error: ${error.message}`);
+                // If we get a non-JSON response, redirect to login
+                if (error.message.includes('Unexpected token')) {
+                    window.location.href = '/login';
+                }
+            }
+        }
+
+        async function addYouTubeToVideo(videoId) {
+            if (!currentVideo) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            showProgress();
+            updateProgress(0, 'Processing YouTube video...');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', currentVideo);
+                formData.append('video_id', videoId);
+
+                const response = await fetch('/add-youtube-to-video', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                // Check if we need to redirect to login
+                if (response.status === 401) {
+                    const data = await response.json();
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                        return;
+                    }
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    updateProgress(100, 'Successfully added YouTube video!');
+                    showOutput(`/output/${result.output_file}`);
+                    
+                    // Update currentVideo with the merged video
+                    fetch(`/output/${result.output_file}`)
+                        .then(response => response.blob())
+                        .then(blob => {
+                            currentVideo = new File([blob], 'merged_video.mp4', { type: 'video/mp4' });
+                        });
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        // Add this function before any other JavaScript code
+        function formatDuration(seconds) {
+            try {
+                seconds = parseInt(seconds);
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const remainingSeconds = seconds % 60;
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+            } catch (e) {
+                return "00:00:00";
+            }
+        }
+
+        // Dailymotion search function
+        async function searchDailymotionClips() {
+            const scriptDescription = document.getElementById('dailymotionScriptDescription').value.trim();
+            if (!scriptDescription) {
+                alert('Please enter a description');
+                return;
+            }
+
+            showProgress();
+            updateProgress(0, 'Searching Dailymotion clips...');
+
+            try {
+                const response = await fetch('/search-dailymotion-clips', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',  // Include cookies in the request
+                    body: JSON.stringify({
+                        script_description: scriptDescription
+                    })
+                });
+
+                // Check if we need to redirect to login
+                if (response.status === 401) {
+                    const data = await response.json();
+                    if (data.redirect) {
+                        window.location.href = data.redirect;
+                        return;
+                    }
+                }
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server returned non-JSON response. Please log in again.');
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    displayDailymotionResults(result.clips);
+                    updateProgress(100, 'Search completed!');
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateProgress(0, `Error: ${error.message}`);
+                // If we get a non-JSON response, redirect to login
+                if (error.message.includes('non-JSON response')) {
+                    window.location.href = '/login';
+                }
+            }
+        }
+
+        // Display Dailymotion search results
+        function displayDailymotionResults(clips) {
+            const resultsDiv = document.getElementById('dailymotionResults');
+            const clipsContainer = document.getElementById('dailymotionClipsContainer');
+            clipsContainer.innerHTML = '';
+
+            if (!clips || clips.length === 0) {
+                clipsContainer.innerHTML = '<div class="col-12">No clips found.</div>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+
+            clips.forEach(clip => {
+                const clipCard = document.createElement('div');
+                clipCard.className = 'col-md-6 mb-4';
+                clipCard.innerHTML = `
+                    <div class="card h-100">
+                        <img src="${clip.thumbnail}" class="card-img-top" alt="Thumbnail" style="height: 200px; object-fit: cover;">
+                        <div class="card-body">
+                            <h5 class="card-title">${clip.title}</h5>
+                            <p class="card-text">
+                                <small>By: ${clip.uploader}</small><br>
+                                <small>Duration: ${formatDuration(clip.duration)}</small><br>
+                                <small>Views: ${clip.view_count.toLocaleString()}</small>
+                            </p>
+                            <div class="mt-2">
+                                <a href="${clip.watch_url}" target="_blank" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-play me-2"></i>Open Clip
+                                </a>
+                                <button class="btn btn-info btn-sm ms-2" onclick="downloadDailymotionClip('${clip.id}')">
+                                    <i class="fas fa-download me-2"></i>Download
+                                </button>
+                                <button class="btn btn-success btn-sm ms-2" onclick="addDailymotionToVideo('${clip.id}')">
+                                    <i class="fas fa-plus me-2"></i>Add to My Video
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                clipsContainer.appendChild(clipCard);
+            });
+            resultsDiv.style.display = 'block';
+        }
+
+        // Download Dailymotion clip
+        async function downloadDailymotionClip(videoId) {
+            showProgress();
+            updateProgress(0, 'Downloading Dailymotion clip...');
+
+            try {
+                const response = await fetch('/download-dailymotion-clip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ video_id: videoId })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    updateProgress(100, 'Downloaded successfully!');
+                    showOutput(`/output/${result.filename}`);
+                    
+                    // Add merge button to the output section
+                    const outputSection = document.querySelector('.output-section');
+                    const existingMergeBtn = document.getElementById('mergeWithVideoBtn');
+                    if (existingMergeBtn) {
+                        existingMergeBtn.remove();
+                    }
+                    
+                    const mergeButton = document.createElement('button');
+                    mergeButton.id = 'mergeWithVideoBtn';
+                    mergeButton.className = 'btn btn-success w-100 mt-3';
+                    mergeButton.innerHTML = '<i class="fas fa-link me-2"></i>Merge with My Video';
+                    mergeButton.onclick = () => addDailymotionToVideo(videoId);
+                    outputSection.appendChild(mergeButton);
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateProgress(0, `Error: ${error.message}`);
+            }
+        }
+
+        // Add Dailymotion clip to video
+        async function addDailymotionToVideo(videoId) {
+            if (!currentVideo) {
+                alert('Please upload a video first');
+                return;
+            }
+
+            showProgress();
+            updateProgress(0, 'Processing Dailymotion video...');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', currentVideo);
+                formData.append('video_id', videoId);
+
+                const response = await fetch('/add-dailymotion-to-video', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    updateProgress(100, 'Successfully added Dailymotion video!');
+                    showOutput(`/output/${result.output_file}`);
+                    
+                    // Update currentVideo with the merged video
+                    fetch(`/output/${result.output_file}`)
+                        .then(response => response.blob())
+                        .then(blob => {
+                            currentVideo = new File([blob], 'merged_video.mp4', { type: 'video/mp4' });
+                        });
+                } else {
+                    updateProgress(0, `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
                 updateProgress(0, `Error: ${error.message}`);
             }
         }

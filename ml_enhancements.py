@@ -666,4 +666,46 @@ class MLVideoEnhancer:
             # Convert back to RGB
             return cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
         
-        return video.fl_image(edge_frame) 
+        return video.fl_image(edge_frame)
+
+    def apply_lcut(self, video_path, audio_offset=1.0):
+        """Apply L-cut effect (audio continues after video ends)"""
+        video = VideoFileClip(video_path)
+        
+        if video.audio is not None:
+            # Get the original audio
+            original_audio = video.audio
+            
+            # Ensure we don't exceed the audio duration
+            max_offset = min(audio_offset, original_audio.duration - video.duration)
+            if max_offset <= 0:
+                return video  # Return original video if no valid offset possible
+            
+            # Create a new audio clip that extends beyond the video
+            extended_audio = original_audio.subclip(0, video.duration + max_offset)
+            
+            # Create a new video clip with the extended audio
+            video = video.set_audio(extended_audio)
+        
+        return video
+
+    def apply_jcut(self, video_path, audio_offset=1.0):
+        """Apply J-cut effect (audio starts before video begins)"""
+        video = VideoFileClip(video_path)
+        
+        if video.audio is not None:
+            # Get the original audio
+            original_audio = video.audio
+            
+            # Ensure we don't exceed the audio duration
+            max_offset = min(audio_offset, original_audio.duration - video.duration)
+            if max_offset <= 0:
+                return video  # Return original video if no valid offset possible
+            
+            # Create a new audio clip that starts before the video
+            extended_audio = original_audio.subclip(-max_offset, video.duration)
+            
+            # Create a new video clip with the extended audio
+            video = video.set_audio(extended_audio)
+        
+        return video 

@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center mb-4">Integrate Movie Scenes</h2>
+    
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <!-- Scene Search Section -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Search for Scenes</h5>
+                    <form id="sceneSearchForm">
+                        <div class="mb-3">
+                            <label for="sceneType" class="form-label">Scene Type</label>
+                            <select class="form-select" id="sceneType" name="scene_type" required>
+                                <option value="fight">Fight Scene</option>
+                                <option value="dance">Dance Scene</option>
+                                <option value="emotional">Emotional Scene</option>
+                                <option value="comedy">Comedy Scene</option>
+                            </select>
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary" id="searchBtn">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                Search Scenes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Suggested Scenes Section -->
+            <div id="suggestedScenesSection" class="card mb-4 d-none">
+                <div class="card-body">
+                    <h5 class="card-title">Suggested Scenes</h5>
+                    <div id="suggestedScenes" class="row"></div>
+                </div>
+            </div>
+
+            <!-- Integration Form -->
+            <div id="integrationFormSection" class="card d-none">
+                <div class="card-body">
+                    <h5 class="card-title">Integrate Selected Scenes</h5>
+                    <form id="sceneIntegrationForm" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="videoFile" class="form-label">Upload Your Video</label>
+                            <input type="file" class="form-control" id="videoFile" name="file" accept="video/*" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="transitionType" class="form-label">Transition Type</label>
+                            <select class="form-select" id="transitionType" name="transition_type" required>
+                                <option value="fade">Fade</option>
+                                <option value="dissolve">Dissolve</option>
+                                <option value="wipe">Wipe</option>
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="transitionDuration" class="form-label">Transition Duration (seconds)</label>
+                                <input type="number" class="form-control" id="transitionDuration" name="transition_duration" 
+                                       value="1.0" step="0.1" min="0.1" max="5.0" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="sceneDuration" class="form-label">Scene Duration (seconds)</label>
+                                <input type="number" class="form-control" id="sceneDuration" name="scene_duration" 
+                                       value="5.0" step="0.5" min="1.0" max="30.0" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="scenePosition" class="form-label">Scene Position</label>
+                                <select class="form-select" id="scenePosition" name="scene_position" required>
+                                    <option value="start">Start</option>
+                                    <option value="end">End</option>
+                                    <option value="both">Both</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-success" id="submitBtn">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                Integrate Selected Scenes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="mt-4 d-none">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Integration Results</h5>
+                        <div id="videoInfo" class="mb-3"></div>
+                        <div id="integratedScenes" class="mb-3"></div>
+                        <div id="outputVideo" class="text-center"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedScenes = new Set();
+
+// Scene Search Form Handler
+document.getElementById('sceneSearchForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const searchBtn = document.getElementById('searchBtn');
+    const spinner = searchBtn.querySelector('.spinner-border');
+    
+    // Show loading state
+    searchBtn.disabled = true;
+    spinner.classList.remove('d-none');
+    
+    try {
+        const formData = new FormData(this);
+        const response = await fetch('/search-movie-scenes', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Show suggested scenes section
+            const suggestedScenesSection = document.getElementById('suggestedScenesSection');
+            suggestedScenesSection.classList.remove('d-none');
+            
+            // Display suggested scenes
+            const suggestedScenes = document.getElementById('suggestedScenes');
+            suggestedScenes.innerHTML = data.suggested_scenes.map(scene => `
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <img src="${scene.thumbnail_url}" class="card-img-top" alt="${scene.movie}">
+                        <div class="card-body">
+                            <h6 class="card-title">${scene.movie}</h6>
+                            <p class="card-text">
+                                <small>${scene.scene_description}</small><br>
+                                <strong>Type:</strong> ${scene.scene_type}<br>
+                                <strong>Mood:</strong> ${scene.mood}
+                            </p>
+                            <div class="form-check">
+                                <input class="form-check-input scene-checkbox" type="checkbox" 
+                                       value="${scene.video_url}" id="scene-${scene.movie}">
+                                <label class="form-check-label" for="scene-${scene.movie}">
+                                    Select Scene
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Show integration form
+            document.getElementById('integrationFormSection').classList.remove('d-none');
+            
+            // Add event listeners to checkboxes
+            document.querySelectorAll('.scene-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        selectedScenes.add(this.value);
+                    } else {
+                        selectedScenes.delete(this.value);
+                    }
+                });
+            });
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred while searching for scenes.');
+    } finally {
+        // Reset button state
+        searchBtn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+});
+
+// Scene Integration Form Handler
+document.getElementById('sceneIntegrationForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    if (selectedScenes.size === 0) {
+        alert('Please select at least one scene to integrate.');
+        return;
+    }
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const spinner = submitBtn.querySelector('.spinner-border');
+    const resultsSection = document.getElementById('resultsSection');
+    
+    // Show loading state
+    submitBtn.disabled = true;
+    spinner.classList.remove('d-none');
+    
+    try {
+        const formData = new FormData(this);
+        formData.append('selected_scenes', JSON.stringify(Array.from(selectedScenes)));
+        
+        const response = await fetch('/integrate-scene', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Show results section
+            resultsSection.classList.remove('d-none');
+            
+            // Display video info
+            const videoInfo = document.getElementById('videoInfo');
+            videoInfo.innerHTML = `
+                <h6>Video Information</h6>
+                <ul class="list-unstyled">
+                    <li>Total Duration: ${data.video_info.total_duration.toFixed(2)} seconds</li>
+                    <li>Scene Count: ${data.video_info.scene_count}</li>
+                    <li>Transition Type: ${data.video_info.transition_type}</li>
+                    <li>Scene Duration: ${data.video_info.scene_duration} seconds</li>
+                </ul>
+            `;
+            
+            // Display integrated scenes
+            const integratedScenes = document.getElementById('integratedScenes');
+            integratedScenes.innerHTML = `
+                <h6>Integrated Scenes</h6>
+                <ul class="list-group">
+                    ${data.integrated_scenes.map(scene => `
+                        <li class="list-group-item">
+                            <strong>${scene.movie}</strong><br>
+                            Type: ${scene.scene_type}<br>
+                            Position: ${scene.position}<br>
+                            Transition: ${scene.transition}
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+            
+            // Display output video
+            const outputVideo = document.getElementById('outputVideo');
+            outputVideo.innerHTML = `
+                <h6>Output Video</h6>
+                <video class="w-100" controls>
+                    <source src="/output/${data.output_file}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <a href="/output/${data.output_file}" class="btn btn-success mt-2" download>
+                    Download Video
+                </a>
+            `;
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred while processing your request.');
+    } finally {
+        // Reset button state
+        submitBtn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+});
+</script>
+
+<style>
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.form-label {
+    font-weight: 500;
+}
+
+.btn-primary, .btn-success {
+    padding: 10px 30px;
+}
+
+#resultsSection {
+    transition: all 0.3s ease;
+}
+
+.list-group-item {
+    margin-bottom: 5px;
+    border-radius: 5px !important;
+}
+
+video {
+    max-height: 400px;
+    border-radius: 8px;
+}
+
+.card-img-top {
+    height: 200px;
+    object-fit: cover;
+}
+
+.scene-checkbox {
+    margin-top: 10px;
+}
+
+#suggestedScenes .card {
+    transition: transform 0.2s;
+}
+
+#suggestedScenes .card:hover {
+    transform: translateY(-5px);
+}
+</style>
+{% endblock %} 

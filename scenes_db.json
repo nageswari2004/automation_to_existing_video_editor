@@ -1,0 +1,32 @@
+[
+  {
+    "scene_id": "matrix_1",
+    "movie": "The Matrix",
+    "scene_text": "Neo meets Morpheus for the first time. They discuss the nature of reality.",
+    "metadata": {
+      "emotion": "mysterious",
+      "setting": "indoor",
+      "action": "dialogue"
+    }
+  },
+  {
+    "scene_id": "titanic_3",
+    "movie": "Titanic",
+    "scene_text": "Jack and Rose stand at the bow of the ship, arms outstretched, feeling the wind.",
+    "metadata": {
+      "emotion": "romantic",
+      "setting": "outdoor",
+      "action": "romantic moment"
+    }
+  },
+  {
+    "scene_id": "dark_knight_5",
+    "movie": "The Dark Knight",
+    "scene_text": "The Joker crashes the party and confronts Rachel and Bruce.",
+    "metadata": {
+      "emotion": "tense",
+      "setting": "indoor",
+      "action": "villain confrontation"
+    }
+  }
+] 
