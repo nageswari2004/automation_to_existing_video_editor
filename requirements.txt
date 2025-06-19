@@ -13,3 +13,4 @@ sqlalchemy>=2.0.0
 sentence-transformers>=2.2.2
 python-dotenv>=1.0.0
 requests>=2.31.0 
+gunicorn>=20.1.0
