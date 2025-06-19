@@ -2052,9 +2052,10 @@ def search_dailymotion_clips():
 @app.route('/download-dailymotion-clip', methods=['POST'])
 @login_required
 def download_dailymotion_clip():
-    import time
     print(f"Debug - download_dailymotion_clip function called.")
+    """Download a Dailymotion clip using yt-dlp."""
     try:
+        # Check if user is authenticated
         if not current_user.is_authenticated:
             return jsonify({
                 'success': False,
@@ -2069,60 +2070,150 @@ def download_dailymotion_clip():
         video_id = data['video_id']
         print(f"Debug - Downloading Dailymotion video ID: {video_id} using yt-dlp")
 
+        # Generate output filename
         output_filename = f'dailymotion_{video_id}_{int(time.time())}.mp4'
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
 
+        # Configure yt-dlp options for Dailymotion
         ydl_opts = {
-            'format': 'best',
+            'format': 'best', # Let yt-dlp pick the best format
             'outtmpl': output_path,
-            'quiet': False,
-            'no_warnings': True,
+            'verbose': True,
+            'no_warnings': False,
             'ignoreerrors': True,
+            'quiet': False,
+            'no_color': True,
+            'extract_flat': False,
+            'force_generic_extractor': False,
             'nocheckcertificate': True,
+            'prefer_insecure': True,
             'geo_bypass': True,
-            'retries': 5,
-            'fragment_retries': 5,
+            'socket_timeout': 60, # Increased socket timeout
+            'retries': 10, # Increased retries for robustness
+            'fragment_retries': 10,
             'skip_unavailable_fragments': True,
+            'keepvideo': False,
+            'writedescription': False,
+            'writeinfojson': False,
+            'writesubtitles': False,
+            'writeautomaticsub': False,
+            'postprocessors': [],
             'merge_output_format': 'mp4',
             'progress_with_newline': True,
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
         }
 
-        urls_to_try = [
-            f'https://www.dailymotion.com/video/{video_id}',
-            f'https://dailymotion.com/video/{video_id}',
-            f'https://www.dailymotion.com/embed/video/{video_id}'
-        ]
-
-        last_error = None
-        for url in urls_to_try:
-            for attempt in range(5):  # Try each URL up to 3 times
+        try:
+            print(f"Debug - Starting yt-dlp download to: {output_path}")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # First try to extract info to verify the video exists and is downloadable
                 try:
-                    print(f"Debug - Attempting download from: {url}, attempt {attempt+1}")
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        ydl.download([url])
-                    if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                        print(f"Debug - Successfully downloaded Dailymotion video from: {url}")
-                        return jsonify({'success': True, 'filename': output_filename})
-                    else:
-                        print(f"Debug - File not found or empty after download attempt from: {url}")
-                        if os.path.exists(output_path):
-                            os.remove(output_path)
-                except Exception as e:
-                    print(f"Debug - Download failed from {url} on attempt {attempt+1}: {repr(e)}")
-                    last_error = repr(e)
-                    if os.path.exists(output_path):
-                        os.remove(output_path)
-                    time.sleep(3)  # Wait 2 seconds before retrying
-                    continue
+                    # Try with different URL formats
+                    urls_to_try = [
+                        f'https://www.dailymotion.com/video/{video_id}',
+                        f'https://dailymotion.com/video/{video_id}',
+                        f'https://www.dailymotion.com/embed/video/{video_id}'
+                    ]
 
-        return jsonify({'success': False, 'error': f'Video not found or unavailable. Last error: {last_error}'})
+                    info = None
+                    for url in urls_to_try:
+                        try:
+                            print(f"Debug - Trying to extract info from: {url}")
+                            info = ydl.extract_info(url, download=False)
+                            if info:
+                                print(f"Debug - Successfully extracted video info from: {url}")
+                                break
+                        except Exception as e:
+                            print(f"Debug - Failed to extract info from {url}: {str(e)}")
+                            continue
+
+                    if not info:
+                        print(f"Debug - Could not extract video info for {video_id} from any URL format")
+                        return jsonify({'success': False, 'error': 'Video not found or unavailable'})
+
+                except Exception as e:
+                    print(f"Debug - Error extracting video info for {video_id}: {type(e).__name__} - {str(e)}")
+                    return jsonify({'success': False, 'error': f'Error accessing video: {str(e)}'})
+
+                # Now try to download the video
+                try:
+                    print(f"Debug - Initiating download for {video_id}")
+                    # Use the first successful URL or the original one for download
+                    download_url = urls_to_try[0] if info else f'https://www.dailymotion.com/video/{video_id}'
+                    ydl.download([download_url])
+                    print(f"Debug - yt-dlp download process finished for {video_id}")
+                except Exception as e:
+                    print(f"Debug - Error during download for {video_id}: {type(e).__name__} - {str(e)}")
+                    if os.path.exists(output_path):
+                        try:
+                            os.remove(output_path)
+                        except: # nosec
+                            pass
+                    return jsonify({'success': False, 'error': f'Error downloading video: {str(e)}'})
+
+            # Verify the downloaded file
+            if not os.path.exists(output_path):
+                print(f"Debug - Output file not found after download at {output_path}")
+                return jsonify({'success': False, 'error': 'Failed to download video: Output file not created.'})
+
+            if os.path.getsize(output_path) == 0:
+                print(f"Debug - Downloaded file is empty at {output_path}")
+                os.remove(output_path)
+                return jsonify({'success': False, 'error': 'Downloaded video file is empty.'})
+
+            print(f"Debug - Successfully downloaded Dailymotion clip to {output_path}")
+
+            # --- NEW: Re-encode video for browser compatibility ---
+            try:
+                print(f"Debug - Loading downloaded Dailymotion clip for re-encoding: {output_path}")
+                clip = mp.VideoFileClip(output_path)
+
+                # Define temporary re-encoded path
+                reencoded_filename = f'reencoded_dailymotion_{int(time.time())}.mp4'
+                reencoded_path = os.path.join(app.config['OUTPUT_FOLDER'], reencoded_filename)
+
+                print(f"Debug - Re-encoding Dailymotion clip to: {reencoded_path}")
+                clip.write_videofile(
+                    reencoded_path,
+                    codec='libx264',
+                    audio_codec='aac',
+                    bitrate='3000k', # Adjust bitrate as needed for quality vs file size
+                    fps=clip.fps, # Preserve original FPS
+                    preset='medium', # Use a balanced preset for quality and speed
+                    threads=4,
+                    ffmpeg_params=[
+                        '-movflags', '+faststart', # For faster web playback
+                        '-pix_fmt', 'yuv420p', # Essential for broad browser compatibility
+                        '-crf', '23' # Constant Rate Factor: 23 is a good balance
+                    ]
+                )
+                clip.close()
+                os.remove(output_path) # Remove the original downloaded file
+                output_filename = reencoded_filename # Use the re-encoded filename for output
+                print(f"Debug - Successfully re-encoded Dailymotion clip to: {output_filename}")
+            except Exception as e:
+                print(f"Debug - Error during Dailymotion re-encoding: {str(e)}")
+                if os.path.exists(output_path): os.remove(output_path) # Clean up original if re-encoding fails
+                return jsonify({'success': False, 'error': f'Error re-encoding video for browser: {str(e)}'})
+            # --- END NEW RE-ENCODE ---
+
+            return jsonify({
+                'success': True,
+                'filename': output_filename # Return the re-encoded filename
+            })
+
+        except Exception as e:
+            print(f"Debug - yt-dlp execution error for {video_id}: {str(e)}")
+            if os.path.exists(output_path):
+                try:
+                    os.remove(output_path)
+                except: # nosec
+                    pass
+            return jsonify({'success': False, 'error': f'Error processing download: {str(e)}'})
 
     except Exception as e:
         print(f"Debug - General error in download_dailymotion_clip: {str(e)}")
         return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'})
+
 @app.route('/add-dailymotion-to-video', methods=['POST'])
 @login_required
 def add_dailymotion_to_video():
@@ -2146,33 +2237,22 @@ def add_dailymotion_to_video():
         video_file.save(temp_video_path)
         
         try:
-            # Load both videos
+            # Load both videos with high quality settings
             main_video = mp.VideoFileClip(temp_video_path, audio=True)
             dailymotion_video = mp.VideoFileClip(dailymotion_path, audio=True)
             
-            # Use the highest resolution and fps among both videos
+            # Ensure both videos have the same resolution (use the higher resolution)
             target_width = max(main_video.w, dailymotion_video.w)
             target_height = max(main_video.h, dailymotion_video.h)
-            target_width -= target_width % 2
-            target_height -= target_height % 2
-            target_fps = max(main_video.fps, dailymotion_video.fps)
-
-            # Only resize if needed
+            
+            # Resize videos if needed while maintaining aspect ratio
             if main_video.w != target_width or main_video.h != target_height:
-                main_video_resized = main_video.resize(newsize=(target_width, target_height))
-            else:
-                main_video_resized = main_video
-
+                main_video = main_video.resize(width=target_width, height=target_height)
             if dailymotion_video.w != target_width or dailymotion_video.h != target_height:
-                dailymotion_video_resized = dailymotion_video.resize(newsize=(target_width, target_height))
-            else:
-                dailymotion_video_resized = dailymotion_video
-
+                dailymotion_video = dailymotion_video.resize(width=target_width, height=target_height)
+            
             # Concatenate videos
-            final_video = mp.concatenate_videoclips(
-                [main_video_resized, dailymotion_video_resized],
-                method="compose"
-            )
+            final_video = mp.concatenate_videoclips([main_video, dailymotion_video])
             
             # Generate output filename
             timestamp = int(time.time())
@@ -2184,28 +2264,24 @@ def add_dailymotion_to_video():
                 output_path,
                 codec='libx264',
                 audio_codec='aac',
-                bitrate='15000k',  # Even higher bitrate
-                fps=target_fps,
-                preset='slow',
-                threads=4,
+                bitrate='8000k',  # High bitrate for better quality
+                fps=30,  # Maintain high frame rate
+                preset='slow',  # Better compression quality
+                threads=4,  # Use multiple threads for faster processing
                 ffmpeg_params=[
-                    '-crf', '16',  # Lower CRF for better quality
-                    '-movflags', '+faststart',
-                    '-pix_fmt', 'yuv420p'
+                    '-crf', '18',  # Constant Rate Factor (lower = better quality, 18 is visually lossless)
+                    '-movflags', '+faststart',  # Enable fast start for web playback
+                    '-pix_fmt', 'yuv420p'  # Ensure compatibility with most players
                 ]
             )
             
             # Clean up
             final_video.close()
-            if main_video_resized != main_video:
-                main_video_resized.close()
-            if dailymotion_video_resized != dailymotion_video:
-                dailymotion_video_resized.close()
             main_video.close()
             dailymotion_video.close()
+            
+            # Remove temporary files
             cleanup_files([temp_video_path, dailymotion_path])
-            import gc
-            gc.collect()
             
             return jsonify({
                 'success': True,
@@ -2214,12 +2290,14 @@ def add_dailymotion_to_video():
             
         except Exception as e:
             print(f"Error in video processing: {str(e)}")
+            # Clean up in case of error
             cleanup_files([temp_video_path, dailymotion_path])
             return jsonify({'success': False, 'error': f'Error processing video: {str(e)}'})
             
     except Exception as e:
         print(f"Error in add_dailymotion_to_video: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
+
 if __name__ == '__main__':
     # Create a test user if none exists
     with app.app_context():
