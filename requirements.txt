@@ -9,6 +9,7 @@ scipy>=1.11.0
 scikit-image>=0.22.0
 imageio-ffmpeg>=0.4.8
 imageio>=2.31.1   
+yt-dlp==2023.11.16 
 #tensorflow>=2.14.0
 #keras>=2.14.0
 flask-sqlalchemy>=3.1.0
