@@ -3,6 +3,7 @@ numpy==1.23.5  # Required by many libraries
 Pillow==10.0.0  # For image processing
 beautifulsoup4==4.12.3  # Web scraping
 flask-login==0.6.2
+setuptools==70.0.0
 flask-sqlalchemy==3.1.0
 sqlalchemy==2.0.0
 python-dotenv==1.0.0
