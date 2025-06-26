@@ -12,6 +12,7 @@ imageio>=2.31.1
 yt-dlp==2023.11.16 
 flask-login==0.6.2
 werkzeug==2.3.7
+beautifulsoup4==4.12.3
 #tensorflow>=2.14.0
 #keras>=2.14.0
 flask-sqlalchemy>=3.1.0
