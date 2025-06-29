@@ -1,0 +1,7 @@
+{
+  "build": {
+    "nixpacks": {
+      "startCmd": "python app.py"
+    }
+  }
+}
