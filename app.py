@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session, flash
-import moviepy as mp
+import moviepy.editor as mp
 import os
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -27,6 +27,14 @@ import re
 import gc  # Add this at the top with other imports
 from concurrent.futures import ThreadPoolExecutor
 import cv2
+
+
+import psutil
+import os
+
+process = psutil.Process(os.getpid())
+mem_info = process.memory_info()
+print(f"Memory usage: {mem_info.rss / (1024 * 1024):.2f} MB")
 
 # Load environment variables
 load_dotenv()
@@ -361,10 +369,12 @@ def cleanup_videos(video_objects, delay=2):
         except Exception as e:
             print(f"Warning: Error closing video object: {str(e)}")
 
+def resize_with_lanczos(clip, size):
+    return clip.fl_image(lambda frame: cv2.resize(frame, size, interpolation=cv2.INTER_LANCZOS4))
+
 @app.route('/merge', methods=['POST'])
 @login_required
 def merge_videos():
-    # Check if user is authenticated
     if not current_user.is_authenticated:
         return jsonify({
             'success': False,
@@ -376,15 +386,15 @@ def merge_videos():
     input_paths = []
     resized_videos = []
     final_video = None
-    
+
     try:
         if 'files[]' not in request.files:
             return jsonify({'success': False, 'error': 'No files uploaded'})
-        
+
         files = request.files.getlist('files[]')
         if not files:
             return jsonify({'success': False, 'error': 'No files selected'})
-        
+
         # Save uploaded files
         for file in files:
             if file:
@@ -392,102 +402,162 @@ def merge_videos():
                 input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(input_path)
                 input_paths.append(input_path)
-                time.sleep(1)  # Wait after saving each file
-                
+                time.sleep(1)
+
         # Load all videos
         try:
             for path in input_paths:
                 video = mp.VideoFileClip(path)
                 videos.append(video)
-                time.sleep(1)  # Wait after loading each video
+                time.sleep(1)
         except Exception as e:
             cleanup_videos(videos)
             cleanup_files(input_paths)
             return jsonify({'success': False, 'error': f'Error loading videos: {str(e)}'})
-        
+
         try:
             # Get the highest resolution
             target_width = max(v.w for v in videos)
             target_height = max(v.h for v in videos)
-            
-            # Ensure dimensions are even
             target_width = target_width - (target_width % 2)
             target_height = target_height - (target_height % 2)
-        
-            # Resize videos to match the highest resolution
+            target_size = (target_width, target_height)
+
+            # Resize videos to match the highest resolution using Lanczos
             for video in videos:
                 if video.w != target_width or video.h != target_height:
-                    resized_video = video.resize(width=target_width, height=target_height)
+                    resized_video = resize_with_lanczos(video, target_size)
                     resized_videos.append(resized_video)
                 else:
                     resized_videos.append(video)
-                time.sleep(1)  # Wait after each resize operation
-            
+                time.sleep(1)
+
             # Concatenate videos
             final_video = mp.concatenate_videoclips(resized_videos)
-            
+
             # Generate output filename
             output_filename = f'merged_{int(time.time())}.mp4'
             output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
-            
+
             # Write the final video
             final_video.write_videofile(
                 output_path,
-                codec='libx264', 
+                codec='libx264',
                 audio_codec='aac',
-                bitrate='8000k',
+                bitrate='12000k',  # Higher bitrate for better quality
                 fps=30,
                 preset='slow',
                 threads=4,
                 ffmpeg_params=[
-                    '-crf', '18',
+                    '-crf', '16',  # Lower CRF for higher quality
                     '-profile:v', 'high',
                     '-level', '4.0',
                     '-movflags', '+faststart',
                     '-pix_fmt', 'yuv420p'
                 ]
             )
-            
-            # Wait before cleanup
+
             time.sleep(3)
-            
-            # Clean up video objects
             cleanup_videos(videos)
             cleanup_videos(resized_videos)
             if final_video:
                 cleanup_videos([final_video])
-            
-            # Force garbage collection
             gc.collect()
             time.sleep(2)
-            
-            # Clean up input files
             cleanup_files(input_paths)
-            
+
             return jsonify({
                 'success': True,
                 'output_file': output_filename
             })
-            
+
         except Exception as e:
-            # Clean up on error
             cleanup_videos(videos)
             cleanup_videos(resized_videos)
             if final_video:
                 cleanup_videos([final_video])
             cleanup_files(input_paths)
             return jsonify({'success': False, 'error': f'Error processing videos: {str(e)}'})
-            
+
     except Exception as e:
-        # Clean up on unexpected error
         cleanup_videos(videos)
         cleanup_videos(resized_videos)
         if final_video:
             cleanup_videos([final_video])
         cleanup_files(input_paths)
-        return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'})
+        return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'})@app.route('/extract-audio', methods=['POST'])
+@app.route('/add-overlay', methods=['POST'])
+@login_required
+def add_overlay():
+    try:
+        if 'file' not in request.files or 'overlay' not in request.files:
+            return jsonify({'success': False, 'error': 'Both main and overlay files are required.'})
 
-@app.route('/extract-audio', methods=['POST'])
+        main_file = request.files['file']
+        overlay_file = request.files['overlay']
+        x_pos = int(request.form.get('x_pos', 0))
+        y_pos = int(request.form.get('y_pos', 0))
+
+        # Save files
+        main_filename = secure_filename(main_file.filename)
+        overlay_filename = secure_filename(overlay_file.filename)
+        main_path = os.path.join(app.config['UPLOAD_FOLDER'], main_filename)
+        overlay_path = os.path.join(app.config['UPLOAD_FOLDER'], overlay_filename)
+        main_file.save(main_path)
+        overlay_file.save(overlay_path)
+
+        # Load main video
+        main_clip = mp.VideoFileClip(main_path)
+
+        # Try loading overlay as video, fallback to image
+        try:
+            overlay_clip = mp.VideoFileClip(overlay_path)
+            # Use the minimum duration to avoid out-of-bounds errors
+            overlay_duration = min(main_clip.duration, overlay_clip.duration)
+            overlay_clip = overlay_clip.set_start(0).set_duration(overlay_duration)
+            main_subclip = main_clip.subclip(0, overlay_duration)
+        except Exception:
+            overlay_clip = mp.ImageClip(overlay_path).set_duration(main_clip.duration)
+            main_subclip = main_clip
+
+        # Set overlay position
+        overlay_clip = overlay_clip.set_position((x_pos, y_pos))
+
+        # Composite the clips
+        final = mp.CompositeVideoClip([main_subclip, overlay_clip])
+
+        # Output
+        output_filename = f'overlay_{int(time.time())}.mp4'
+        output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
+        final.write_videofile(
+            output_path,
+            codec='libx264',
+            audio_codec='aac',
+            bitrate='8000k',
+            fps=main_clip.fps,
+            preset='slow',
+            threads=4,
+            ffmpeg_params=[
+                '-crf', '18',
+                '-profile:v', 'high',
+                '-level', '4.0',
+                '-movflags', '+faststart',
+                '-pix_fmt', 'yuv420p'
+            ]
+        )
+
+        # Cleanup
+        main_clip.close()
+        overlay_clip.close()
+        final.close()
+        os.remove(main_path)
+        os.remove(overlay_path)
+
+        return jsonify({'success': True, 'output_file': output_filename})
+
+    except Exception as e:
+        print(f"Error in add_overlay: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
 @login_required
 def extract_audio():
     try:
@@ -2220,6 +2290,12 @@ def add_dailymotion_to_video():
     except Exception as e:
         print(f"Error in add_dailymotion_to_video: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
+
+
+process = psutil.Process(os.getpid())
+mem_info = process.memory_info()
+print(f"Memory usage: {mem_info.rss / (1024 * 1024):.2f} MB")
+
 if __name__ == '__main__':
     # Create a test user if none exists
     with app.app_context():
@@ -2235,4 +2311,4 @@ if __name__ == '__main__':
             print("Test user created successfully")  # Debug print
     
     print("Starting Flask application...")  # Debug print
-    app.run(debug=True, port=5000) 
+    app.run(host='0.0.0.0', port=5000, debug=True)  # Allow external access
