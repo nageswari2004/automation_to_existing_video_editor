@@ -558,6 +558,7 @@ def add_overlay():
     except Exception as e:
         print(f"Error in add_overlay: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
+@app.route('/extract-audio', methods=['POST'])
 @login_required
 def extract_audio():
     try:
@@ -677,26 +678,19 @@ def resize_video():
         
         if not file:
             return jsonify({'success': False, 'error': 'No file selected'})
-            
         if width <= 0 or height <= 0:
             return jsonify({'success': False, 'error': 'Invalid dimensions'})
         
-        # Save the uploaded file
         filename = secure_filename(file.filename)
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(input_path)
         
-        # Load the video
         video = mp.VideoFileClip(input_path)
+        resized_video = video.resize(size=(width, height))  # <-- THIS IS CORRECT
         
-        # Resize the video
-        resized_video = video.resize(width=width, height=height)
-        
-        # Generate output filename
         output_filename = f'resized_{int(time.time())}.mp4'
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
         
-        # Write the resized video
         resized_video.write_videofile(
             output_path,
             codec='libx264',
@@ -709,23 +703,16 @@ def resize_video():
                 '-crf', '18',
                 '-profile:v', 'high',
                 '-level', '4.0',
-                '-movflags', '+faststart',
+                 '-movflags', '+faststart',
                 '-pix_fmt', 'yuv420p'
             ]
         )
         
-        # Close the video
         video.close()
         resized_video.close()
-        
-        # Clean up input file
         os.remove(input_path)
         
-        return jsonify({
-            'success': True,
-            'output_file': output_filename
-        })
-        
+        return jsonify({'success': True, 'output_file': output_filename})
     except Exception as e:
         print(f"Error in resize_video: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
