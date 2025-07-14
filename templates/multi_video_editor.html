@@ -116,6 +116,9 @@
             <button class="feature-btn" onclick="showMultiFeature('overlay')">
                 <i class="fas fa-layer-group"></i> Add Overlay
             </button>
+            <button class="feature-btn" onclick="showMultiFeature('transition')">
+        <i class="fas fa-film"></i> Transitions
+    </button>
             <button class="feature-btn" onclick="showMultiFeature('prompt')">
                 <i class="fas fa-terminal"></i> Process via Prompt
             </button>
@@ -165,6 +168,36 @@
             </form>
             <div id="overlayResult" class="output-display mt-3" style="display:none;"></div>
         </div>
+        <!-- Transitions Section -->
+<div class="feature-content-wrapper" id="transitionFeatureContent">
+    <h2>Apply Transitions Between Videos</h2>
+    <form id="transitionForm" action="/apply-transition" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="transitionFiles">Select Videos for Transition (2 or more):</label>
+            <input type="file" class="form-control-file" id="transitionFiles" name="files[]" multiple required>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="transitionType">Transition Type</label>
+                    <select id="transitionType" name="transition_type" class="form-control">
+                        <option value="fade">Fade</option>
+                        <option value="dissolve">Dissolve</option>
+                        <option value="wipe">Wipe</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="transitionDuration">Duration (seconds)</label>
+                    <input type="number" id="transitionDuration" name="duration" class="form-control" step="0.1" min="0.1" value="1.0" required>
+                </div>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3"><i class="fas fa-film me-1"></i>Apply Transition</button>
+    </form>
+    <div id="transitionResult" class="output-display mt-3" style="display:none;"></div>
+</div>
         
         <!-- Prompt Processing Section -->
         <div class="feature-content-wrapper" id="promptFeatureContent">
@@ -275,6 +308,7 @@
 
         document.getElementById('mergeForm').addEventListener('submit', (e) => handleFormSubmit(e, 'mergeResult'));
         document.getElementById('overlayForm').addEventListener('submit', (e) => handleFormSubmit(e, 'overlayResult'));
+        document.getElementById('transitionForm').addEventListener('submit', (e) => handleFormSubmit(e, 'transitionResult'));
         document.getElementById('promptForm').addEventListener('submit', (e) => handleFormSubmit(e, 'promptResult'));
 
         // Ensure default view is set (Merge is active by default as per HTML structure)
