@@ -299,9 +299,6 @@
                         <i class="fas fa-music"></i> Extract Audio
                     </button>
                     <!-- New Feature Buttons -->
-                    <button class="feature-btn" onclick="showFeature('transition')">
-                        <i class="fas fa-film"></i> Transitions
-                    </button>
                     <button class="feature-btn" onclick="showFeature('color-grading')">
                         <i class="fas fa-palette"></i> Color Grading
                     </button>
@@ -843,37 +840,45 @@
             }
         }
 
-        async function resizeVideo() {
-            const width = document.getElementById('width').value;
-            const height = document.getElementById('height').value;
-            
-            if (!width || !height) {
-                alert('Please enter both width and height');
-                return;
-            }
+        // ...existing code...
+async function resizeVideo() {
+    const width = document.getElementById('width').value;
+    const height = document.getElementById('height').value;
 
-            const formData = new FormData();
-            formData.append('width', width);
-            formData.append('height', height);
+    if (!currentVideo) {
+        alert('Please upload a video first');
+        return;
+    }
+    if (!width || !height) {
+        alert('Please enter both width and height');
+        return;
+    }
 
-            fetch('/resize-video', {
-                    method: 'POST',
-                    body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Video resized successfully!');
-                    location.reload();
-                } else {
-                    alert('Error resizing video: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error resizing video');
-            });
+    const formData = new FormData();
+    formData.append('file', currentVideo); // <-- Add this line!
+    formData.append('width', width);
+    formData.append('height', height);
+
+    showProgress();
+    updateProgress(0, 'Resizing video...');
+
+    try {
+        const response = await fetch('/resize', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.success) {
+            updateProgress(100, 'Video resized successfully!');
+            showOutput(`/output/${data.output_file}`);
+        } else {
+            updateProgress(0, 'Error resizing video: ' + data.error);
         }
+    } catch (error) {
+        console.error('Error:', error);
+        updateProgress(0, 'Error resizing video');
+    }
+}
 
         async function changeSpeed() {
             if (!currentVideo) {
@@ -1057,43 +1062,46 @@
                 updateProgress(0, `Error: ${error.message}`);
             }
         }
+// ...existing code...
+async function applyTransition() {
+    const filesInput = document.getElementById('transitionFiles');
+    const files = filesInput.files;
+    const transitionType = document.getElementById('transitionType').value;
+    const duration = document.getElementById('transitionDuration').value;
 
-        async function applyTransition() {
-            const videoToProcess = getVideoToProcess();
-            if (!videoToProcess) {
-                alert('Please upload a video first');
-                return;
-            }
+    if (!files || files.length < 2) {
+        alert('Please select at least two videos for transition.');
+        return;
+    }
 
-            const transitionType = document.getElementById('transitionType').value;
-            const duration = document.getElementById('transitionDuration').value;
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+        formData.append('files[]', files[i]);
+    }
+    formData.append('transition_type', transitionType);
+    formData.append('duration', duration);
 
-            const formData = new FormData();
-            formData.append('file', videoToProcess);
-            formData.append('transition_type', transitionType);
-            formData.append('duration', duration);
+    showProgress();
+    updateProgress(0, 'Applying transition...');
 
-            showProgress();
-            updateProgress(0, 'Applying transition...');
+    try {
+        const response = await fetch('/apply-transition', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
 
-            try {
-                const response = await fetch('/apply-transition', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    updateProgress(100, 'Transition applied successfully!');
-                    showOutput(`/output/${result.output_file}`);
-                } else {
-                    updateProgress(0, `Error: ${result.error}`);
-                }
-            } catch (error) {
-                updateProgress(0, `Error: ${error.message}`);
-            }
+        if (result.success) {
+            updateProgress(100, 'Transition applied successfully!');
+            showOutput(`/output/${result.output_file}`);
+        } else {
+            updateProgress(0, `Error: ${result.error}`);
         }
-
+    } catch (error) {
+        updateProgress(0, `Error: ${error.message}`);
+    }
+}
+// ...existing code...
         async function applySpeedRamping() {
             const videoToProcess = getVideoToProcess();
             if (!videoToProcess) {
@@ -1289,6 +1297,41 @@
                 statusDiv.textContent = `Error: ${error.message}`;
             }
         }
+        // ...existing code...
+async function applyColorGrading() {
+    const videoToProcess = getVideoToProcess();
+    if (!videoToProcess) {
+        alert('Please upload a video first');
+        return;
+    }
+
+    const colorStyle = document.getElementById('colorStyle').value;
+
+    const formData = new FormData();
+    formData.append('file', videoToProcess);
+    formData.append('color_style', colorStyle);
+
+    showProgress();
+    updateProgress(0, 'Applying color grading...'); // <-- Progress message
+
+    try {
+        const response = await fetch('/apply-color-grading', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            updateProgress(100, 'Color grading applied successfully!');
+            showOutput(`/output/${result.output_file}`);
+        } else {
+            updateProgress(0, `Error: ${result.error}`);
+        }
+    } catch (error) {
+        updateProgress(0, `Error: ${error.message}`);
+    }
+}
+// ...existing code...
 
         function searchPexelsClips() {
             const scriptDescription = document.getElementById('pexelsScriptDescription').value.trim();
