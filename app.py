@@ -686,7 +686,7 @@ def resize_video():
         file.save(input_path)
         
         video = mp.VideoFileClip(input_path)
-        resized_video = video.resize(size=(width, height))  # <-- THIS IS CORRECT
+        resized_video = video.resize((width, height)) # <-- THIS IS CORRECT
         
         output_filename = f'resized_{int(time.time())}.mp4'
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
@@ -717,42 +717,73 @@ def resize_video():
         print(f"Error in resize_video: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
+import numpy as np
+from moviepy.editor import VideoFileClip, concatenate_videoclips, CompositeVideoClip
+
+def make_wipe_mask(size, duration):
+    w, h = size
+    def mask(get_frame, t):
+        prog = np.clip(t / duration, 0, 1)
+        mask_frame = np.zeros((h, w), dtype=float)
+        mask_frame[:, :int(w * prog)] = 1.0
+        return mask_frame
+    return mask
+
 @app.route('/apply-transition', methods=['POST'])
 @login_required
 def apply_transition():
     try:
-        if 'file' not in request.files:
-            return jsonify({'success': False, 'error': 'No file uploaded'})
+        if 'files[]' not in request.files:
+            return jsonify({'success': False, 'error': 'No files uploaded'})
         
-        file = request.files['file']
+        files = request.files.getlist('files[]')
         transition_type = request.form.get('transition_type', 'fade')
         duration = float(request.form.get('duration', 1.0))
         
-        if not file:
-            return jsonify({'success': False, 'error': 'No file selected'})
+        if len(files) < 2:
+            return jsonify({'success': False, 'error': 'Please upload at least two videos for transition.'})
         
-        # Save the uploaded file
-        filename = secure_filename(file.filename)
-        input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(input_path)
+        # Save uploaded files
+        input_paths = []
+        for file in files:
+            filename = secure_filename(file.filename)
+            input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(input_path)
+            input_paths.append(input_path)
         
-        # Load the video
-        video = mp.VideoFileClip(input_path)
+        # Load all videos
+        clips = [mp.VideoFileClip(path) for path in input_paths]
+        
+        # Resize all clips to the same size (use the largest dimensions)
+        max_w = max(clip.w for clip in clips)
+        max_h = max(clip.h for clip in clips)
+        target_size = (max_w, max_h)
+        clips = [clip.resize(newsize=target_size) if (clip.w, clip.h) != target_size else clip for clip in clips]
         
         # Apply transition
-        if transition_type == 'fade':
-            transitioned_video = video.fadein(duration).fadeout(duration)
-        elif transition_type == 'dissolve':
-            transitioned_video = video.crossfadein(duration)
+        if transition_type in ['dissolve', 'fade']:
+            for i in range(1, len(clips)):
+                clips[i] = clips[i].crossfadein(duration)
+            final = mp.concatenate_videoclips(clips, method="compose", padding=-duration)
+        elif transition_type == 'wipe':
+            # Only supports two clips for simplicity
+            if len(clips) != 2:
+                for clip in clips:
+                    clip.close()
+                for path in input_paths:
+                    os.remove(path)
+                return jsonify({'success': False, 'error': 'Wipe transition currently supports only two videos.'})
+            clip1, clip2 = clips
+            mask = mp.VideoClip(make_wipe_mask((max_w, max_h), duration), duration=duration)
+            clip2_masked = clip2.set_start(clip1.duration - duration).set_mask(mask)
+            final = CompositeVideoClip([clip1, clip2_masked]).set_duration(clip1.duration + clip2.duration - duration)
         else:
-            transitioned_video = video
-            
-        # Generate output filename
+            final = mp.concatenate_videoclips(clips, method="compose")
+        
+        # Output
         output_filename = f'transition_{int(time.time())}.mp4'
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
-        
-        # Write the transitioned video
-        transitioned_video.write_videofile(
+        final.write_videofile(
             output_path,
             codec='libx264',
             audio_codec='aac',
@@ -769,22 +800,18 @@ def apply_transition():
             ]
         )
         
-        # Close the video
-        video.close()
-        transitioned_video.close()
+        # Cleanup
+        for clip in clips:
+            clip.close()
+        final.close()
+        for path in input_paths:
+            os.remove(path)
         
-        # Clean up input file
-        os.remove(input_path)
-        
-        return jsonify({
-            'success': True,
-            'output_file': output_filename
-        })
+        return jsonify({'success': True, 'output_file': output_filename})
         
     except Exception as e:
         print(f"Error in apply_transition: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
-
 @app.route('/apply-color-grading', methods=['POST'])
 @login_required
 def apply_color_grading():
