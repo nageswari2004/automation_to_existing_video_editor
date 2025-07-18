@@ -27,6 +27,8 @@ import re
 import gc  # Add this at the top with other imports
 from concurrent.futures import ThreadPoolExecutor
 import cv2
+from moviepy.video.fx import all as vfx
+from PIL import Image, ImageEnhance
 
 
 import psutil
@@ -2309,6 +2311,277 @@ def add_dailymotion_to_video():
 process = psutil.Process(os.getpid())
 mem_info = process.memory_info()
 print(f"Memory usage: {mem_info.rss / (1024 * 1024):.2f} MB")
+
+
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['OUTPUT_FOLDER'] = 'outputs'
+app.config['ALLOWED_EXTENSIONS'] = {'mp4', 'mov', 'avi', 'mkv'}
+
+# Supported commands for error messages
+SUPPORTED_COMMANDS = [
+    'trim start=X end=Y',
+    'resize width=X height=Y',
+    'speed factor=X',
+    'extract_audio format=mp3|wav',
+    'color_grade brightness=X contrast=Y saturation=Z',
+    'speed_ramp start=X end=Y factor=Z',
+    'effect type=blur|glow|vignette strength=X',
+    'animation type=zoom|pan|fade start=X end=Y scale=Z',
+    'overlay type=text|image content="X" x=Y y=Z duration=W',
+    'transition type=crossfade|slide|wipe duration=X',
+    'merge_videos files=file1.mp4,file2.mp4'
+]
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+# Custom effect implementations
+def apply_glow(clip, intensity=0.5):
+    """Custom glow effect implementation"""
+    blurred = clip.fx(gaussian_blur, sigma=intensity*10)
+    return CompositeVideoClip([clip, blurred.set_opacity(intensity)])
+
+def apply_vignette(clip, strength=0.8):
+    """Custom vignette effect implementation"""
+    def vignette_filter(frame):
+        h, w = frame.shape[:2]
+        x = np.linspace(-1, 1, w)
+        y = np.linspace(-1, 1, h)
+        X, Y = np.meshgrid(x, y)
+        mask = 1 - np.sqrt(X**2 + Y**2) * strength
+        mask = np.clip(mask, 0, 1)
+        return (frame * mask[..., np.newaxis]).astype(frame.dtype)
+    return clip.fl_image(vignette_filter)
+
+@app.route('/process-prompt', methods=['POST'])
+@login_required
+def process_prompt():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file uploaded'})
+        
+        file = request.files['file']
+        prompt = request.form.get('prompt', '').strip().lower()
+        
+        if not prompt:
+            return jsonify({'success': False, 'error': 'No prompt provided'})
+        if not allowed_file(file.filename):
+            return jsonify({'success': False, 'error': 'Invalid file type'})
+
+        # Setup directories
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
+
+        # Save uploaded file
+        filename = secure_filename(file.filename)
+        input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(input_path)
+
+        # Process video
+        result = handle_video_processing(input_path, prompt)
+        
+        # Cleanup
+        try:
+            os.remove(input_path)
+        except:
+            pass
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+def handle_video_processing(input_path, prompt):
+    video = None
+    try:
+        video = VideoFileClip(input_path)
+        output_filename = None
+        processed_clip = video
+
+        # Trim Video
+        if prompt.startswith('trim'):
+            match = re.search(r'start=([\d.]+)\s*end=([\d.]+)', prompt)
+            if match:
+                start, end = float(match.group(1)), float(match.group(2))
+                processed_clip = video.subclip(start, end)
+                output_filename = f"trimmed_{int(time.time())}.mp4"
+
+        # Resize Video
+        elif prompt.startswith('resize'):
+            match = re.search(r'width=(\d+)\s*height=(\d+)', prompt)
+            if match:
+                width, height = int(match.group(1)), int(match.group(2))
+                processed_clip = video.resize((width, height))
+                output_filename = f"resized_{int(time.time())}.mp4"
+
+        # Change Speed
+        elif prompt.startswith('speed'):
+            match = re.search(r'factor=([\d.]+)', prompt)
+            if match:
+                factor = float(match.group(1))
+                processed_clip = video.fx(vfx.speedx, factor)
+                output_filename = f"speed_{factor}x_{int(time.time())}.mp4"
+
+        # Extract Audio
+        elif prompt.startswith('extract_audio'):
+            match = re.search(r'format=(mp3|wav)', prompt)
+            audio_format = match.group(1) if match else "mp3"
+            output_filename = f"audio_{int(time.time())}.{audio_format}"
+            output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
+            video.audio.write_audiofile(output_path)
+            return {'success': True, 'output_file': output_filename}
+
+        # Color Grading
+        elif prompt.startswith('color_grade'):
+            try:
+                match = re.search(r'brightness=([\d.]+)\s*contrast=([\d.]+)\s*saturation=([\d.]+)', prompt)
+                if not match:
+                    raise ValueError("Invalid color_grade format. Use: color_grade brightness=1.0 contrast=1.0 saturation=1.0")
+
+                brightness = float(match.group(1))
+                contrast = float(match.group(2))
+                saturation = float(match.group(3))
+
+                # Validate ranges
+                if not (0.0 <= brightness <= 3.0):
+                    raise ValueError("Brightness must be between 0.0 and 3.0")
+                if not (0.0 <= contrast <= 3.0):
+                    raise ValueError("Contrast must be between 0.0 and 3.0")
+                if not (0.0 <= saturation <= 3.0):
+                    raise ValueError("Saturation must be between 0.0 and 3.0")
+
+                def apply_color_grade(frame):
+                    try:
+                        pil_img = Image.fromarray(frame)
+                        if brightness != 1.0:
+                            pil_img = ImageEnhance.Brightness(pil_img).enhance(brightness)
+                        if contrast != 1.0:
+                            pil_img = ImageEnhance.Contrast(pil_img).enhance(contrast)
+                        if saturation != 1.0:
+                            pil_img = ImageEnhance.Color(pil_img).enhance(saturation)
+                        return np.array(pil_img)
+                    except Exception as e:
+                        print(f"Frame processing error: {str(e)}")
+                        return frame
+
+                processed_clip = video.fl_image(apply_color_grade)
+                output_filename = f"color_graded_{int(time.time())}.mp4"
+
+            except Exception as e:
+                raise ValueError(f"Color grading failed: {str(e)}")
+
+        # Speed Ramping
+        elif prompt.startswith('speed_ramp'):
+            match = re.search(r'start=([\d.]+)\s*end=([\d.]+)\s*factor=([\d.]+)', prompt)
+            if match:
+                start, end, factor = float(match.group(1)), float(match.group(2)), float(match.group(3))
+                
+                def speed_func(t):
+                    if t < start: return 1.0
+                    elif t > end: return factor
+                    else: return 1.0 + (factor - 1.0) * ((t - start) / (end - start))
+                
+                processed_clip = video.fl_time(lambda t: speed_func(t) * t)
+                processed_clip = processed_clip.set_duration(video.duration / speed_func(video.duration))
+                output_filename = f"speed_ramp_{int(time.time())}.mp4"
+
+        # Apply Effects
+        elif prompt.startswith('effect'):
+            match = re.search(r'type=(\w+)\s*strength=([\d.]+)', prompt)
+            if match:
+                effect_type = match.group(1).lower()
+                strength = float(match.group(2))
+                
+                if effect_type == 'blur':
+                    processed_clip = video.fx(gaussian_blur, sigma=strength)
+                elif effect_type == 'glow':
+                    processed_clip = apply_glow(video, intensity=strength/10)
+                elif effect_type == 'vignette':
+                    processed_clip = apply_vignette(video, strength=strength/15)
+                else:
+                    raise ValueError(f"Unknown effect type: {effect_type}")
+                
+                output_filename = f"effect_{effect_type}_{int(time.time())}.mp4"
+
+        # Add Animations
+        elif prompt.startswith('animation'):
+            match = re.search(r'type=(\w+)\s*start=([\d.]+)\s*end=([\d.]+)\s*scale=([\d.]+)', prompt)
+            if match:
+                anim_type = match.group(1).lower()
+                start, end, scale = float(match.group(2)), float(match.group(3)), float(match.group(4))
+                
+                if anim_type == 'zoom':
+                    def zoom_effect(get_frame, t):
+                        frame = get_frame(t)
+                        if start <= t <= end:
+                            progress = (t - start) / (end - start)
+                            current_scale = 1 + (scale - 1) * progress
+                            img = Image.fromarray(frame)
+                            w, h = img.size
+                            img = img.resize((int(w * current_scale), int(h * current_scale)), Image.LANCZOS)
+                            frame = np.array(img)
+                        return frame
+                    
+                    processed_clip = video.fl(zoom_effect)
+                    output_filename = f"animation_zoom_{int(time.time())}.mp4"
+
+        # Add Overlay
+        elif prompt.startswith('overlay'):
+            match = re.search(r'type=(\w+)\s*(?:content="([^"]+)"|path=([^\s]+))\s*x=([\d]+)\s*y=([\d]+)\s*(?:duration=([\d.]+)|duration=full)', prompt)
+            if match:
+                overlay_type = match.group(1).lower()
+                content = match.group(2) or match.group(3)
+                x, y = int(match.group(4)), int(match.group(5))
+                duration = match.group(6)
+                
+                if overlay_type == 'text':
+                    txt_clip = TextClip(content, fontsize=50, color='white')
+                    duration = float(duration) if duration else video.duration
+                    txt_clip = txt_clip.set_pos((x, y)).set_duration(duration)
+                    processed_clip = CompositeVideoClip([video, txt_clip])
+                    output_filename = f"text_overlay_{int(time.time())}.mp4"
+                
+                elif overlay_type == 'image':
+                    img_clip = ImageClip(content).set_pos((x, y))
+                    duration = float(duration) if duration else video.duration
+                    img_clip = img_clip.set_duration(duration)
+                    processed_clip = CompositeVideoClip([video, img_clip])
+                    output_filename = f"image_overlay_{int(time.time())}.mp4"
+
+        # Merge Videos
+        elif prompt.startswith('merge_videos'):
+            match = re.search(r'files=([\w\.,]+)', prompt)
+            if match:
+                files = match.group(1).split(',')
+                clips = [VideoFileClip(os.path.join(app.config['UPLOAD_FOLDER'], f)) for f in files]
+                clips.insert(0, video)  # Add the original video
+                processed_clip = concatenate_videoclips(clips)
+                output_filename = f"merged_{int(time.time())}.mp4"
+
+        else:
+            raise ValueError(f"Unknown command. Supported: {', '.join(SUPPORTED_COMMANDS)}")
+
+        # Save processed video
+        if output_filename:
+            output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
+            processed_clip.write_videofile(
+                output_path,
+                codec='libx264',
+                audio_codec='aac',
+                threads=4,
+                preset='fast',
+                ffmpeg_params=['-crf', '23']
+            )
+            return {'success': True, 'output_file': output_filename}
+        else:
+            raise ValueError("Processing failed - no output generated")
+
+    except Exception as e:
+        raise ValueError(f"Video processing error: {str(e)}")
+    finally:
+        if video:
+            video.close()
 
 if __name__ == '__main__':
     # Create a test user if none exists
