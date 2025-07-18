@@ -1135,56 +1135,66 @@ async function applyTransition() {
                 updateProgress(0, `Error: ${error.message}`);
             }
         }
+async function processPrompt() {
+    console.log("Starting processPrompt function");  // Debug log
 
-        async function processPrompt() {
-            console.log("Starting processPrompt function");  // Debug log
-            
-            if (!currentVideo) {
-                console.log("No video selected");  // Debug log
-                alert('Please upload a video first');
-                return;
+    if (!currentVideo) {
+        console.log("No video selected");  // Debug log
+        alert('Please upload a video first');
+        return;
+    }
+
+    const prompt = document.getElementById('promptInput').value.trim();
+    console.log("Prompt:", prompt);  // Debug log
+
+    if (!prompt) {
+        console.log("Empty prompt");  // Debug log
+        alert('Please enter a command');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', currentVideo);
+    formData.append('prompt', prompt);
+
+    console.log("Sending request to /process-prompt");  // Debug log
+    showProgress();
+    updateProgress(0, 'Processing video...');
+
+    try {
+        const response = await fetch('/process-prompt', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
             }
+        });
+        console.log("Received response:", response.status);  // Debug log
 
-            const prompt = document.getElementById('promptInput').value.trim();
-            console.log("Prompt:", prompt);  // Debug log
-            
-            if (!prompt) {
-                console.log("Empty prompt");  // Debug log
-                alert('Please enter a command');
-                return;
-            }
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+if (!contentType || !contentType.includes('application/json')) {
+    // Not JSON, likely a login page or error
+    updateProgress(0, 'Error: Server did not return JSON. Please log in again.');
+    return;
+}
 
-            const formData = new FormData();
-            formData.append('file', currentVideo);
-            formData.append('prompt', prompt);
-            
-            console.log("Sending request to /process-prompt");  // Debug log
-            showProgress();
-            updateProgress(0, 'Processing video...');
+        const result = await response.json();
+        console.log("Response data:", result);  // Debug log
 
-            try {
-                const response = await fetch('/process-prompt', {
-                    method: 'POST',
-                    body: formData
-                });
-                console.log("Received response:", response.status);  // Debug log
-                
-                const result = await response.json();
-                console.log("Response data:", result);  // Debug log
-
-                if (result.success) {
-                    console.log("Processing successful");  // Debug log
-                    updateProgress(100, 'Video processed successfully!');
-                    showOutput(`/output/${result.output_file}`);
-                } else {
-                    console.log("Processing failed:", result.error);  // Debug log
-                    updateProgress(0, `Error: ${result.error}`);
-                }
-            } catch (error) {
-                console.error("Error in processPrompt:", error);  // Debug log
-                updateProgress(0, `Error: ${error.message}`);
-            }
+        if (result.success) {
+            console.log("Processing successful");  // Debug log
+            updateProgress(100, 'Video processed successfully!');
+            showOutput(`/output/${result.output_file}`);
+        } else {
+            console.log("Processing failed:", result.error);  // Debug log
+            updateProgress(0, `Error: ${result.error}`);
         }
+    } catch (error) {
+        console.error("Error in processPrompt:", error);  // Debug log
+        updateProgress(0, `Error: ${error.message}`);
+    }
+}
 
         function handleMainVideoUpload(input) {
             const file = input.files[0];
