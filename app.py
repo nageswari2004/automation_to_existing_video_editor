@@ -2323,7 +2323,7 @@ SUPPORTED_COMMANDS = [
     'resize width=X height=Y',
     'speed factor=X',
     'extract_audio format=mp3|wav',
-    'color_grade brightness=X contrast=Y saturation=Z',
+    'color_grade brightness=X contrast=Y saturation=Z | cinematic|vintage|warm|cool|noir|vibrant',  # Updated
     'speed_ramp start=X end=Y factor=Z',
     'effect type=blur|glow|vignette strength=X',
     'animation type=zoom|pan|fade start=X end=Y scale=Z',
@@ -2369,24 +2369,31 @@ def process_prompt():
         if not allowed_file(file.filename):
             return jsonify({'success': False, 'error': 'Invalid file type'})
 
-        # Setup directories
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-        os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
+        # Command validation
+        is_color_grade = prompt.startswith('color_grade')
+        has_preset = any(x in prompt for x in ['cinematic','vintage','warm','cool','noir','vibrant'])
+        has_custom = any(x in prompt for x in ['brightness=','contrast=','saturation='])
+        
+        # Fixed validation logic
+        is_valid = any(prompt.startswith(cmd.split()[0]) for cmd in SUPPORTED_COMMANDS)
+        if not is_valid and not (is_color_grade and (has_preset or has_custom)):
+            return jsonify({
+                'success': False,
+                'error': f'Unknown command. Supported: {", ".join(SUPPORTED_COMMANDS)}'
+            })
 
-        # Save uploaded file
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         filename = secure_filename(file.filename)
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(input_path)
-
-        # Process video
+        
         result = handle_video_processing(input_path, prompt)
         
-        # Cleanup
         try:
             os.remove(input_path)
         except:
             pass
-
+            
         return jsonify(result)
 
     except Exception as e:
@@ -2434,42 +2441,106 @@ def handle_video_processing(input_path, prompt):
 
         # Color Grading
         elif prompt.startswith('color_grade'):
-            try:
-                match = re.search(r'brightness=([\d.]+)\s*contrast=([\d.]+)\s*saturation=([\d.]+)', prompt)
-                if not match:
-                    raise ValueError("Invalid color_grade format. Use: color_grade brightness=1.0 contrast=1.0 saturation=1.0")
+            # Parse the prompt to determine if it's a preset or custom values
+            preset_match = re.search(r'color_grade\s+(\w+)', prompt)
+            custom_match = re.search(r'brightness=([\d.]+)\s*contrast=([\d.]+)\s*saturation=([\d.]+)', prompt)
 
-                brightness = float(match.group(1))
-                contrast = float(match.group(2))
-                saturation = float(match.group(3))
+            # Define all color grade presets
+            COLOR_PRESETS = {
+                'cinematic': {'brightness': 0.9, 'contrast': 1.2, 'saturation': 1.1, 'temperature': -5},
+                'vintage': {'brightness': 0.85, 'contrast': 1.1, 'saturation': 0.8, 'temperature': 15},
+                'warm': {'brightness': 1.1, 'contrast': 1.0, 'saturation': 1.3, 'temperature': 20},
+                'cool': {'brightness': 0.95, 'contrast': 1.1, 'saturation': 0.7, 'temperature': -15},
+                'noir': {'brightness': 0.8, 'contrast': 1.3, 'saturation': 0.5, 'temperature': 0},
+                'vibrant': {'brightness': 1.1, 'contrast': 1.2, 'saturation': 1.4, 'temperature': 0}
+            }
 
-                # Validate ranges
-                if not (0.0 <= brightness <= 3.0):
-                    raise ValueError("Brightness must be between 0.0 and 3.0")
-                if not (0.0 <= contrast <= 3.0):
-                    raise ValueError("Contrast must be between 0.0 and 3.0")
-                if not (0.0 <= saturation <= 3.0):
-                    raise ValueError("Saturation must be between 0.0 and 3.0")
+            def apply_color_adjustments(frame, brightness=1.0, contrast=1.0, saturation=1.0, temperature=0):
+                """Apply all color transformations to a frame"""
+                try:
+                    # Convert numpy array to PIL Image
+                    pil_img = Image.fromarray(frame)
+                    
+                    # Apply brightness
+                    if brightness != 1.0:
+                        pil_img = ImageEnhance.Brightness(pil_img).enhance(brightness)
+                    
+                    # Apply contrast
+                    if contrast != 1.0:
+                        pil_img = ImageEnhance.Contrast(pil_img).enhance(contrast)
+                    
+                    # Apply saturation
+                    if saturation != 1.0:
+                        pil_img = ImageEnhance.Color(pil_img).enhance(saturation)
+                    
+                    # Apply temperature (warm/cool)
+                    if temperature != 0:
+                        r, g, b = pil_img.split()
+                        if temperature > 0:  # Warm (increase red, decrease blue)
+                            r = r.point(lambda i: min(255, i + temperature))
+                            b = b.point(lambda i: max(0, i - temperature//2))
+                        else:  # Cool (increase blue, decrease red)
+                            b = b.point(lambda i: min(255, i - temperature))
+                            r = r.point(lambda i: max(0, i + temperature//2))
+                        pil_img = Image.merge('RGB', (r, g, b))
+                    
+                    return np.array(pil_img)
+                
+                except Exception as e:
+                    print(f"Frame processing error: {str(e)}")
+                    return frame
 
-                def apply_color_grade(frame):
-                    try:
-                        pil_img = Image.fromarray(frame)
-                        if brightness != 1.0:
-                            pil_img = ImageEnhance.Brightness(pil_img).enhance(brightness)
-                        if contrast != 1.0:
-                            pil_img = ImageEnhance.Contrast(pil_img).enhance(contrast)
-                        if saturation != 1.0:
-                            pil_img = ImageEnhance.Color(pil_img).enhance(saturation)
-                        return np.array(pil_img)
-                    except Exception as e:
-                        print(f"Frame processing error: {str(e)}")
-                        return frame
-
-                processed_clip = video.fl_image(apply_color_grade)
-                output_filename = f"color_graded_{int(time.time())}.mp4"
-
-            except Exception as e:
-                raise ValueError(f"Color grading failed: {str(e)}")
+            # Handle preset color grades
+            if preset_match and preset_match.group(1).lower() in COLOR_PRESETS:
+                preset_name = preset_match.group(1).lower()
+                params = COLOR_PRESETS[preset_name]
+                
+                processed_clip = video.fl_image(
+                    lambda frame: apply_color_adjustments(
+                        frame,
+                        brightness=params['brightness'],
+                        contrast=params['contrast'],
+                        saturation=params['saturation'],
+                        temperature=params['temperature']
+                    )
+                )
+                output_filename = f"color_grade_{preset_name}_{int(time.time())}.mp4"
+            
+            # Handle custom color grades
+            elif custom_match:
+                try:
+                    brightness = float(custom_match.group(1))
+                    contrast = float(custom_match.group(2))
+                    saturation = float(custom_match.group(3))
+                    
+                    # Validate ranges
+                    if not (0.0 <= brightness <= 3.0):
+                        raise ValueError("Brightness must be between 0.0 and 3.0")
+                    if not (0.0 <= contrast <= 3.0):
+                        raise ValueError("Contrast must be between 0.0 and 3.0")
+                    if not (0.0 <= saturation <= 3.0):
+                        raise ValueError("Saturation must be between 0.0 and 3.0")
+                    
+                    processed_clip = video.fl_image(
+                        lambda frame: apply_color_adjustments(
+                            frame,
+                            brightness=brightness,
+                            contrast=contrast,
+                            saturation=saturation
+                        )
+                    )
+                    output_filename = f"color_grade_custom_{int(time.time())}.mp4"
+                
+                except Exception as e:
+                    raise ValueError(f"Custom color grading failed: {str(e)}")
+            
+            else:
+                available_presets = ", ".join(COLOR_PRESETS.keys())
+                raise ValueError(
+                    f"Invalid color_grade command. Use either:\n"
+                    f"- Presets: color_grade [cinematic|vintage|warm|cool|noir|vibrant]\n"
+                    f"- Custom: color_grade brightness=X contrast=Y saturation=Z"
+                )
 
         # Speed Ramping
         elif prompt.startswith('speed_ramp'):
@@ -2582,7 +2653,6 @@ def handle_video_processing(input_path, prompt):
     finally:
         if video:
             video.close()
-
 if __name__ == '__main__':
     # Create a test user if none exists
     with app.app_context():
