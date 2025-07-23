@@ -27,6 +27,7 @@ import re
 import gc  # Add this at the top with other imports
 from concurrent.futures import ThreadPoolExecutor
 import cv2
+import math
 from moviepy.video.fx import all as vfx
 from PIL import Image, ImageEnhance
 
@@ -2330,6 +2331,7 @@ SUPPORTED_COMMANDS = [
     'overlay type=text|image content="X" x=Y y=Z duration=W',
     'transition type=crossfade|slide|wipe duration=X',
     'merge_videos files=file1.mp4,file2.mp4'
+    'animation type=zoom|pan|fade|bounce|rotate|slide start=X end=Y scale=Z angle=A direction=left|right|up|down',
 ]
 
 def allowed_file(filename):
@@ -2592,26 +2594,110 @@ def handle_video_processing(input_path, prompt):
 
         # Add Animations
         elif prompt.startswith('animation'):
-            match = re.search(r'type=(\w+)\s*start=([\d.]+)\s*end=([\d.]+)\s*scale=([\d.]+)', prompt)
+            match = re.search(
+                r'type=(\w+)\s*start=([\d.]+)\s*end=([\d.]+)\s*' + 
+                r'(?:scale=([\d.]+))?\s*(?:angle=([\d.]+))?\s*' + 
+                r'(?:direction=(left|right|up|down))?',
+                prompt.lower()
+            )
             if match:
                 anim_type = match.group(1).lower()
-                start, end, scale = float(match.group(2)), float(match.group(3)), float(match.group(4))
-                
+                start, end = float(match.group(2)), float(match.group(3))
+                scale = float(match.group(4)) if match.group(4) else 1.5
+                angle = float(match.group(5)) if match.group(5) else 0
+                direction = match.group(6) if match.group(6) else 'right'
+
                 if anim_type == 'zoom':
                     def zoom_effect(get_frame, t):
                         frame = get_frame(t)
                         if start <= t <= end:
                             progress = (t - start) / (end - start)
                             current_scale = 1 + (scale - 1) * progress
-                            img = Image.fromarray(frame)
-                            w, h = img.size
-                            img = img.resize((int(w * current_scale), int(h * current_scale)), Image.LANCZOS)
-                            frame = np.array(img)
+                            
+                            # High-quality zoom implementation
+                            h, w = frame.shape[:2]
+                            center_x, center_y = w // 2, h // 2
+                            crop_w = int(w / current_scale)
+                            crop_h = int(h / current_scale)
+                            x1 = max(0, center_x - crop_w // 2)
+                            y1 = max(0, center_y - crop_h // 2)
+                            x2 = min(w, center_x + crop_w // 2)
+                            y2 = min(h, center_y + crop_h // 2)
+                            cropped = frame[y1:y2, x1:x2]
+                            frame = cv2.resize(cropped, (w, h), interpolation=cv2.INTER_LANCZOS4)
+                        return frame
+                    processed_clip = video.fl(zoom_effect)
+
+                elif anim_type == 'rotate':
+                    def rotate_effect(get_frame, t):
+                        frame = get_frame(t)
+                        if start <= t <= end:
+                            progress = (t - start) / (end - start)
+                            current_angle = angle * progress
+                            
+                            # Create temporary high-res version
+                            h, w = frame.shape[:2]
+                            temp = cv2.resize(frame, (w*2, h*2), interpolation=cv2.INTER_LANCZOS4)
+                            
+                            # Rotate the high-res version
+                            M = cv2.getRotationMatrix2D((w, h), current_angle, 1)
+                            rotated = cv2.warpAffine(temp, M, (w*2, h*2),
+                                              flags=cv2.INTER_LANCZOS4,
+                                              borderMode=cv2.BORDER_REPLICATE)
+                            
+                            # Crop back to original size
+                            frame = cv2.resize(rotated[h//2:h+h//2, w//2:w+w//2], (w, h),
+                                          interpolation=cv2.INTER_LANCZOS4)
+                            
+                            # Apply slight sharpening
+                            kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]]) / 4.0
+                            frame = cv2.filter2D(frame, -1, kernel)
                         return frame
                     
-                    processed_clip = video.fl(zoom_effect)
-                    output_filename = f"animation_zoom_{int(time.time())}.mp4"
+                    processed_clip = video.fl(rotate_effect)
 
+                elif anim_type == 'slide':
+                    def slide_effect(get_frame, t):
+                        frame = get_frame(t)
+                        if start <= t <= end:
+                            progress = (t - start) / (end - start)
+                            offset = int(progress * video.w)
+                            if direction == 'left':
+                                frame = np.roll(frame, -offset, axis=1)
+                            elif direction == 'right':
+                                frame = np.roll(frame, offset, axis=1)
+                            elif direction == 'up':
+                                frame = np.roll(frame, -offset, axis=0)
+                            else:  # down
+                                frame = np.roll(frame, offset, axis=0)
+                        return frame
+                    processed_clip = video.fl(slide_effect)
+
+                elif anim_type == 'fade':
+                    def fade_effect(get_frame, t):
+                        frame = get_frame(t)
+                        if start <= t <= end:
+                            progress = (t - start) / (end - start)
+                            if 'in' in prompt.lower():
+                                frame = (frame * progress).astype('uint8')
+                            else:  # fade out
+                                frame = (frame * (1 - progress)).astype('uint8')
+                        return frame
+                    processed_clip = video.fl(fade_effect)
+
+                elif anim_type == 'bounce':
+                    def bounce_effect(get_frame, t):
+                        frame = get_frame(t)
+                        if start <= t <= end:
+                            progress = (t - start) / (end - start)
+                        # Bounce easing function using math.sin
+                            bounce_progress = abs(math.sin(progress * math.pi * 3)) * (1 - progress)
+                            offset = int(bounce_progress * video.h * 0.1)
+                            frame = np.roll(frame, -offset, axis=0)
+                        return frame
+                    processed_clip = video.fl(bounce_effect)
+
+                output_filename = f"animation_{anim_type}_{int(time.time())}.mp4"
         # Add Overlay
         elif prompt.startswith('overlay'):
             match = re.search(r'type=(\w+)\s*(?:content="([^"]+)"|path=([^\s]+))\s*x=([\d]+)\s*y=([\d]+)\s*(?:duration=([\d.]+)|duration=full)', prompt)
