@@ -2441,11 +2441,9 @@ def handle_video_processing(input_path, prompt):
 
         # Color Grading
         elif prompt.startswith('color_grade'):
-            # Parse the prompt to determine if it's a preset or custom values
             preset_match = re.search(r'color_grade\s+(\w+)', prompt)
             custom_match = re.search(r'brightness=([\d.]+)\s*contrast=([\d.]+)\s*saturation=([\d.]+)', prompt)
 
-            # Define all color grade presets
             COLOR_PRESETS = {
                 'cinematic': {'brightness': 0.9, 'contrast': 1.2, 'saturation': 1.1, 'temperature': -5},
                 'vintage': {'brightness': 0.85, 'contrast': 1.1, 'saturation': 0.8, 'temperature': 15},
@@ -2456,45 +2454,31 @@ def handle_video_processing(input_path, prompt):
             }
 
             def apply_color_adjustments(frame, brightness=1.0, contrast=1.0, saturation=1.0, temperature=0):
-                """Apply all color transformations to a frame"""
                 try:
-                    # Convert numpy array to PIL Image
                     pil_img = Image.fromarray(frame)
-                    
-                    # Apply brightness
                     if brightness != 1.0:
                         pil_img = ImageEnhance.Brightness(pil_img).enhance(brightness)
-                    
-                    # Apply contrast
                     if contrast != 1.0:
                         pil_img = ImageEnhance.Contrast(pil_img).enhance(contrast)
-                    
-                    # Apply saturation
                     if saturation != 1.0:
                         pil_img = ImageEnhance.Color(pil_img).enhance(saturation)
-                    
-                    # Apply temperature (warm/cool)
                     if temperature != 0:
                         r, g, b = pil_img.split()
-                        if temperature > 0:  # Warm (increase red, decrease blue)
+                        if temperature > 0:
                             r = r.point(lambda i: min(255, i + temperature))
                             b = b.point(lambda i: max(0, i - temperature//2))
-                        else:  # Cool (increase blue, decrease red)
+                        else:
                             b = b.point(lambda i: min(255, i - temperature))
                             r = r.point(lambda i: max(0, i + temperature//2))
                         pil_img = Image.merge('RGB', (r, g, b))
-                    
                     return np.array(pil_img)
-                
                 except Exception as e:
                     print(f"Frame processing error: {str(e)}")
                     return frame
 
-            # Handle preset color grades
             if preset_match and preset_match.group(1).lower() in COLOR_PRESETS:
                 preset_name = preset_match.group(1).lower()
                 params = COLOR_PRESETS[preset_name]
-                
                 processed_clip = video.fl_image(
                     lambda frame: apply_color_adjustments(
                         frame,
@@ -2506,14 +2490,12 @@ def handle_video_processing(input_path, prompt):
                 )
                 output_filename = f"color_grade_{preset_name}_{int(time.time())}.mp4"
             
-            # Handle custom color grades
             elif custom_match:
                 try:
                     brightness = float(custom_match.group(1))
                     contrast = float(custom_match.group(2))
                     saturation = float(custom_match.group(3))
                     
-                    # Validate ranges
                     if not (0.0 <= brightness <= 3.0):
                         raise ValueError("Brightness must be between 0.0 and 3.0")
                     if not (0.0 <= contrast <= 3.0):
@@ -2530,17 +2512,10 @@ def handle_video_processing(input_path, prompt):
                         )
                     )
                     output_filename = f"color_grade_custom_{int(time.time())}.mp4"
-                
                 except Exception as e:
                     raise ValueError(f"Custom color grading failed: {str(e)}")
-            
             else:
-                available_presets = ", ".join(COLOR_PRESETS.keys())
-                raise ValueError(
-                    f"Invalid color_grade command. Use either:\n"
-                    f"- Presets: color_grade [cinematic|vintage|warm|cool|noir|vibrant]\n"
-                    f"- Custom: color_grade brightness=X contrast=Y saturation=Z"
-                )
+                raise ValueError(f"Invalid color_grade format. Use presets or brightness/contrast/saturation")
 
         # Speed Ramping
         elif prompt.startswith('speed_ramp'):
@@ -2564,15 +2539,55 @@ def handle_video_processing(input_path, prompt):
                 effect_type = match.group(1).lower()
                 strength = float(match.group(2))
                 
-                if effect_type == 'blur':
-                    processed_clip = video.fx(gaussian_blur, sigma=strength)
-                elif effect_type == 'glow':
-                    processed_clip = apply_glow(video, intensity=strength/10)
-                elif effect_type == 'vignette':
-                    processed_clip = apply_vignette(video, strength=strength/15)
+                if effect_type == 'freeze_frame':
+                    def freeze_effect(get_frame, t):
+                        frame = get_frame(t)
+                        if t >= strength:
+                            return frame
+                        return get_frame(strength)
+                    processed_clip = video.fl(freeze_effect)
+                    
+                elif effect_type == 'motion_blur':
+                    processed_clip = video.fx(vfx.motion_blur, blur=strength)
+                    
+                elif effect_type == 'gaussian_blur':
+                    processed_clip = video.fx(vfx.gaussian_blur, sigma=strength)
+                    
+                elif effect_type == 'sepia':
+                    def sepia_effect(frame):
+                        arr = frame * np.array([0.393, 0.769, 0.189])
+                        return np.clip(arr, 0, 255).astype('uint8')
+                    processed_clip = video.fl_image(sepia_effect)
+                    
+                elif effect_type == 'negative':
+                    processed_clip = video.fx(vfx.invert_colors)
+                    
+                elif effect_type == 'mirror':
+                    processed_clip = video.fx(vfx.mirror_x) if strength > 0.5 else video.fx(vfx.mirror_y)
+                    
+                elif effect_type == 'pixelate':
+                    def pixelate(frame):
+                        factor = max(1, int(strength))  # Ensure at least 1 and integer
+                        small = frame[::factor, ::factor]  # Downsample
+                        # Upsample with nearest neighbor
+                        return np.repeat(np.repeat(small, factor, axis=0), factor, axis=1)
+                    processed_clip = video.fl_image(pixelate)
+                    
+                elif effect_type == 'edge_detection':
+                    def edge_detect(frame):
+                        gray = np.mean(frame, axis=2)
+                        kernel = np.array([[-1,-1,-1], [-1,8,-1], [-1,-1,-1]])
+                        return cv2.filter2D(gray, -1, kernel)
+                    processed_clip = video.fl_image(edge_detect)
+                    
                 else:
-                    raise ValueError(f"Unknown effect type: {effect_type}")
-                
+                    if effect_type == 'blur':
+                        processed_clip = video.fx(gaussian_blur, sigma=strength)
+                    elif effect_type == 'glow':
+                        processed_clip = apply_glow(video, intensity=strength/10)
+                    elif effect_type == 'vignette':
+                        processed_clip = apply_vignette(video, strength=strength/15)
+                        
                 output_filename = f"effect_{effect_type}_{int(time.time())}.mp4"
 
         # Add Animations
@@ -2626,7 +2641,7 @@ def handle_video_processing(input_path, prompt):
             if match:
                 files = match.group(1).split(',')
                 clips = [VideoFileClip(os.path.join(app.config['UPLOAD_FOLDER'], f)) for f in files]
-                clips.insert(0, video)  # Add the original video
+                clips.insert(0, video)
                 processed_clip = concatenate_videoclips(clips)
                 output_filename = f"merged_{int(time.time())}.mp4"
 
