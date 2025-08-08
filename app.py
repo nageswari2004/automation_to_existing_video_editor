@@ -30,10 +30,16 @@ import cv2
 import math
 from moviepy.video.fx import all as vfx
 from PIL import Image, ImageEnhance
-
-
 import psutil
 import os
+from moviepy.editor import (
+    VideoFileClip,
+    TextClip,  # Add this import
+    ImageClip,  # Add this import
+    CompositeVideoClip,
+    concatenate_videoclips,
+    vfx
+)
 
 process = psutil.Process(os.getpid())
 mem_info = process.memory_info()
@@ -2324,16 +2330,15 @@ SUPPORTED_COMMANDS = [
     'resize width=X height=Y',
     'speed factor=X',
     'extract_audio format=mp3|wav',
-    'color_grade brightness=X contrast=Y saturation=Z | cinematic|vintage|warm|cool|noir|vibrant',  # Updated
+    'color_grade brightness=X contrast=Y saturation=Z',
+    'color_grade preset=cinematic|vintage|warm|cool|noir|vibrant',
     'speed_ramp start=X end=Y factor=Z',
-    'effect type=blur|glow|vignette strength=X',
-    'animation type=zoom|pan|fade start=X end=Y scale=Z',
-    'overlay type=text|image content="X" x=Y y=Z duration=W',
-    'transition type=crossfade|slide|wipe duration=X',
-    'merge_videos files=file1.mp4,file2.mp4'
+    'effect type=blur|glow|vignette|freeze_frame|motion_blur|sepia|negative|mirror|pixelate|edge_detection strength=X',
     'animation type=zoom|pan|fade|bounce|rotate|slide start=X end=Y scale=Z angle=A direction=left|right|up|down',
+    'merge_videos files=file1.mp4,file2.mp4 transition=type duration=X',
+    'overlay type=text|image|video content="X" x=Y y=Z duration=W position=top|bottom|center-left|right|center',
+    'transition type=crossfade|slide|wipe|fade duration=X direction=left|right|up|down'
 ]
-
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -2365,6 +2370,14 @@ def process_prompt():
         
         file = request.files['file']
         prompt = request.form.get('prompt', '').strip().lower()
+
+        # --- ADD THIS BLOCK FOR AUXILIARY FILES ---
+        if 'aux_file' in request.files:
+            aux_file = request.files['aux_file']
+            if aux_file and allowed_file(aux_file.filename):
+                aux_filename = secure_filename(aux_file.filename)
+                aux_path = os.path.join(app.config['UPLOAD_FOLDER'], aux_filename)
+                aux_file.save(aux_path)
         
         if not prompt:
             return jsonify({'success': False, 'error': 'No prompt provided'})
@@ -2400,6 +2413,7 @@ def process_prompt():
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
 
 def handle_video_processing(input_path, prompt):
     video = None
@@ -2698,38 +2712,245 @@ def handle_video_processing(input_path, prompt):
                     processed_clip = video.fl(bounce_effect)
 
                 output_filename = f"animation_{anim_type}_{int(time.time())}.mp4"
-        # Add Overlay
+
+        # Overlay Processing
         elif prompt.startswith('overlay'):
-            match = re.search(r'type=(\w+)\s*(?:content="([^"]+)"|path=([^\s]+))\s*x=([\d]+)\s*y=([\d]+)\s*(?:duration=([\d.]+)|duration=full)', prompt)
-            if match:
-                overlay_type = match.group(1).lower()
-                content = match.group(2) or match.group(3)
-                x, y = int(match.group(4)), int(match.group(5))
-                duration = match.group(6)
-                
-                if overlay_type == 'text':
-                    txt_clip = TextClip(content, fontsize=50, color='white')
-                    duration = float(duration) if duration else video.duration
+            try:
+                # Text overlay
+                if 'type=text' in prompt:
+                    match = re.search(
+                        r'type=text\s+content="([^"]+)"\s+x=(\d+)\s+y=(\d+)'
+                        r'(?:\s+color=(\w+))?(?:\s+fontsize=(\d+))?'
+                        r'(?:\s+duration=([\d.]+|full))?',
+                        prompt
+                    )
+                    if not match:
+                        raise ValueError("Invalid text overlay format")
+
+                    content = match.group(1)
+                    x, y = int(match.group(2)), int(match.group(3))
+                    color = match.group(4) or 'white'
+                    fontsize = int(match.group(5)) if match.group(5) else 50
+                    duration = float(match.group(6)) if match.group(6) and match.group(6) != 'full' else None
+
+                    txt_clip = TextClip(
+                        content,
+                        fontsize=fontsize,
+                        color=color,
+                        stroke_color='black',
+                        stroke_width=1
+                    )
+                    duration = duration if duration else video.duration
                     txt_clip = txt_clip.set_pos((x, y)).set_duration(duration)
                     processed_clip = CompositeVideoClip([video, txt_clip])
-                    output_filename = f"text_overlay_{int(time.time())}.mp4"
-                
-                elif overlay_type == 'image':
-                    img_clip = ImageClip(content).set_pos((x, y))
-                    duration = float(duration) if duration else video.duration
-                    img_clip = img_clip.set_duration(duration)
-                    processed_clip = CompositeVideoClip([video, img_clip])
-                    output_filename = f"image_overlay_{int(time.time())}.mp4"
 
-        # Merge Videos
+                # Image overlay
+                elif 'type=image' in prompt:
+                    match = re.search(
+                        r'type=image\s+path=([^\s]+)\s+x=(\d+)\s+y=(\d+)'
+                        r'(?:\s+opacity=([\d.]+))?(?:\s+duration=([\d.]+|full))?',
+                        prompt
+                    )
+                    if not match:
+                        raise ValueError("Invalid image overlay format")
+
+                    path = match.group(1)
+                    x, y = int(match.group(2)), int(match.group(3))
+                    opacity = float(match.group(4)) if match.group(4) else 1.0
+                    duration = float(match.group(5)) if match.group(5) and match.group(5) != 'full' else None
+
+                    # Always resolve relative path to uploads folder
+                    if not os.path.isabs(path):
+                        path = os.path.join(app.config['UPLOAD_FOLDER'], path)
+                    if not os.path.exists(path):
+                        raise ValueError(f"Image file not found: {path}")
+
+                    img_clip = ImageClip(path).set_opacity(opacity)
+                    duration = duration if duration else video.duration
+                    img_clip = img_clip.set_pos((x, y)).set_duration(duration)
+                    processed_clip = CompositeVideoClip([video, img_clip])
+
+                # Video overlay
+                elif 'type=video' in prompt:
+                    match = re.search(
+                        r'type=video\s+path=([^\s]+)\s+x=(\d+)\s+y=(\d+)'
+                        r'(?:\s+volume=([\d.]+))?(?:\s+duration=([\d.]+|full))?',
+                        prompt
+                    )
+                    if not match:
+                        raise ValueError("Invalid video overlay format")
+
+                    path = match.group(1)
+                    x, y = int(match.group(2)), int(match.group(3))
+                    volume = float(match.group(4)) if match.group(4) else 1.0
+                    duration = float(match.group(5)) if match.group(5) and match.group(5) != 'full' else None
+
+                    # Always resolve relative path to uploads folder
+                    if not os.path.isabs(path):
+                        path = os.path.join(app.config['UPLOAD_FOLDER'], path)
+                    if not os.path.exists(path):
+                        raise ValueError(f"Video file not found: {path}")
+
+                    overlay_video = VideoFileClip(path)
+                    if volume != 1.0:
+                        overlay_video = overlay_video.volumex(volume)
+                    if duration and duration < overlay_video.duration:
+                        overlay_video = overlay_video.subclip(0, duration)
+                    
+                    overlay_video = overlay_video.set_pos((x, y))
+                    processed_clip = CompositeVideoClip([video, overlay_video])
+
+                else:
+                    raise ValueError("Invalid overlay type")
+
+                output_filename = f"overlay_{int(time.time())}.mp4"
+            except Exception as e:
+                raise ValueError(f"Overlay processing failed: {str(e)}")
+        # Merge Processing
         elif prompt.startswith('merge_videos'):
-            match = re.search(r'files=([\w\.,]+)', prompt)
-            if match:
-                files = match.group(1).split(',')
-                clips = [VideoFileClip(os.path.join(app.config['UPLOAD_FOLDER'], f)) for f in files]
-                clips.insert(0, video)
-                processed_clip = concatenate_videoclips(clips)
+            try:
+                match = re.search(r'files=([^\s]+(?:,[^\s]+)*)', prompt)
+                if not match:
+                    raise ValueError("Invalid merge format. Example: 'merge_videos files=clip2.mp4,clip3.mp4'")
+                
+                files = [f.strip() for f in match.group(1).split(',')]
+                main_video_name = os.path.basename(input_path)
+                # Avoid duplicating the main video if it's listed in files
+                clips = [video] if main_video_name not in files else []
+
+                # Load and validate additional clips
+                for f in files:
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], f) if not os.path.isabs(f) else f
+                    print(f"Trying to load: {file_path}")  # Debug print
+                    if not os.path.exists(file_path):
+                        raise ValueError(f"File not found: {f} (Looked in: {file_path})")
+                    try:
+                        clip = VideoFileClip(file_path)
+                        if clip is None or not hasattr(clip, 'get_frame'):
+                            raise ValueError(f"Failed to load video file: {f}")
+                        print(f"Loaded {f}: duration={clip.duration}, size={clip.size}")  # Debug print
+                        clips.append(clip)
+                    except Exception as e:
+                        raise ValueError(f"Invalid video file {f}: {str(e)}")
+
+                if len(clips) < 2:
+                    raise ValueError("At least two videos are required for merging.")
+
+                # Ensure all clips have the same size
+                target_w = max(c.w for c in clips)
+                target_h = max(c.h for c in clips)
+                target_size = (target_w, target_h)
+                for i, c in enumerate(clips):
+                    if (c.w, c.h) != target_size:
+                        clips[i] = c.resize(newsize=target_size)
+
+                # Transition handling
+                transition_match = re.search(r'transition=(\w+)\s+duration=([\d.]+)', prompt)
+                if transition_match:
+                    transition_type = transition_match.group(1).lower()
+                    transition_duration = float(transition_match.group(2))
+                    final_clips = [clips[0]]
+                    for i in range(1, len(clips)):
+                        if transition_type == 'crossfade':
+                            final_clips.append(clips[i].crossfadein(transition_duration))
+                        else:
+                            final_clips.append(clips[i])
+                    processed_clip = concatenate_videoclips(final_clips, method="compose")
+                else:
+                    processed_clip = concatenate_videoclips(clips, method="compose")
+
                 output_filename = f"merged_{int(time.time())}.mp4"
+                output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
+                processed_clip.write_videofile(
+                    output_path,
+                    codec='libx264',
+                    audio_codec='aac',
+                    threads=4,
+                    preset='fast',
+                    ffmpeg_params=['-crf', '23']
+                )
+
+                # Verify output was created
+                if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                    raise RuntimeError("Output file not generated")
+                
+                return {'success': True, 'output_file': output_filename}
+
+            except Exception as e:
+                raise ValueError(f"Video processing error: {str(e)}")
+            finally:
+                # Close all loaded clips except the main video (already closed in outer finally)
+                for clip in clips[1:] if len(clips) > 1 else []:
+                    try:
+                        clip.close()
+                    except Exception:
+                        pass
+                if 'processed_clip' in locals():
+                    try:
+                        processed_clip.close()
+                    except Exception:
+                        pass
+        # Add Transition (for single video)
+        elif prompt.startswith('transition'):
+            match = re.search(r'type=(\w+)\s+duration=([\d.]+)', prompt)
+            if match:
+                transition_type = match.group(1).lower()
+                duration = float(match.group(2))
+                
+                if transition_type == 'crossfade':
+                    # Split video into two parts and crossfade them
+                    if video.duration < duration * 2:
+                        raise ValueError("Video too short for this transition")
+                    
+                    clip1 = video.subclip(0, video.duration - duration)
+                    clip2 = video.subclip(video.duration - duration)
+                    clip2 = clip2.crossfadein(duration)
+                    processed_clip = CompositeVideoClip([clip1, clip2.set_start(clip1.duration - duration)])
+                
+                elif transition_type == 'fade':
+                    processed_clip = video.fadein(duration/2).fadeout(duration/2)
+                
+                elif transition_type == 'slide':
+                    direction = 'right'
+                    dir_match = re.search(r'direction=(\w+)', prompt)
+                    if dir_match:
+                        direction = dir_match.group(1).lower()
+                    
+                    def slide_effect(get_frame, t):
+                        frame = get_frame(t)
+                        h, w = frame.shape[:2]
+                        offset = 0
+                        
+                        if t < duration:  # Slide in
+                            progress = t / duration
+                            if direction == 'right':
+                                offset = int(w * (1 - progress))
+                            elif direction == 'left':
+                                offset = int(-w * (1 - progress))
+                            elif direction == 'up':
+                                offset = int(-h * (1 - progress))
+                            elif direction == 'down':
+                                offset = int(h * (1 - progress))
+                        
+                        elif t > video.duration - duration:  # Slide out
+                            progress = (t - (video.duration - duration)) / duration
+                            if direction == 'right':
+                                offset = int(w * progress)
+                            elif direction == 'left':
+                                offset = int(-w * progress)
+                            elif direction == 'up':
+                                offset = int(-h * progress)
+                            elif direction == 'down':
+                                offset = int(h * progress)
+                            
+                        if direction in ['left', 'right']:
+                            return np.roll(frame, offset, axis=1)
+                        else:
+                            return np.roll(frame, offset, axis=0)
+                    
+                    processed_clip = video.fl(slide_effect)
+                
+                output_filename = f"transition_{transition_type}_{int(time.time())}.mp4"
 
         else:
             raise ValueError(f"Unknown command. Supported: {', '.join(SUPPORTED_COMMANDS)}")
@@ -2745,6 +2966,11 @@ def handle_video_processing(input_path, prompt):
                 preset='fast',
                 ffmpeg_params=['-crf', '23']
             )
+            
+            # Verify output was created
+            if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                raise RuntimeError("Output file not generated")
+            
             return {'success': True, 'output_file': output_filename}
         else:
             raise ValueError("Processing failed - no output generated")
@@ -2754,6 +2980,8 @@ def handle_video_processing(input_path, prompt):
     finally:
         if video:
             video.close()
+
+
 if __name__ == '__main__':
     # Create a test user if none exists
     with app.app_context():
