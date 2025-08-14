@@ -2712,101 +2712,102 @@ def handle_video_processing(input_path, prompt):
                     processed_clip = video.fl(bounce_effect)
 
                 output_filename = f"animation_{anim_type}_{int(time.time())}.mp4"
-
-        # Overlay Processing
         elif prompt.startswith('overlay'):
-            try:
-                # Text overlay
-                if 'type=text' in prompt:
-                    match = re.search(
-                        r'type=text\s+content="([^"]+)"\s+x=(\d+)\s+y=(\d+)'
-                        r'(?:\s+color=(\w+))?(?:\s+fontsize=(\d+))?'
-                        r'(?:\s+duration=([\d.]+|full))?',
-                        prompt
-                    )
-                    if not match:
-                        raise ValueError("Invalid text overlay format")
+                try:
+                        # Parse the overlay command
+                        match = re.search(
+                                r'overlay\s+type=(text|image|video)\s+'
+                                r'(?:content="([^"]+)"\s+)?'
+                                r'(?:path="([^"]+)"\s+)?'
+                                r'x=(\d+)\s+y=(\d+)\s+'
+                                r'(?:duration=([\d.]+)\s+)?'
+                                r'(?:position=(top|bottom|center|left|right|center-left|center-right)\s+)?'
+                                r'(?:opacity=([\d.]+)\s+)?'
+                                r'(?:volume=([\d.]+)\s+)?'
+                                r'(?:color=(\w+)\s+)?'
+                                r'(?:fontsize=(\d+)\s+)?',
+                                prompt
+                        )
 
-                    content = match.group(1)
-                    x, y = int(match.group(2)), int(match.group(3))
-                    color = match.group(4) or 'white'
-                    fontsize = int(match.group(5)) if match.group(5) else 50
-                    duration = float(match.group(6)) if match.group(6) and match.group(6) != 'full' else None
+                        if not match:
+                                raise ValueError("Invalid overlay command format")
 
-                    txt_clip = TextClip(
-                        content,
-                        fontsize=fontsize,
-                        color=color,
-                        stroke_color='black',
-                        stroke_width=1
-                    )
-                    duration = duration if duration else video.duration
-                    txt_clip = txt_clip.set_pos((x, y)).set_duration(duration)
-                    processed_clip = CompositeVideoClip([video, txt_clip])
+                        overlay_type = match.group(1)
+                        x, y = int(match.group(4)), int(match.group(5))
+                        duration = float(match.group(6)) if match.group(6) else None
+                        position = match.group(7) or 'top-left'
 
-                # Image overlay
-                elif 'type=image' in prompt:
-                    match = re.search(
-                        r'type=image\s+path=([^\s]+)\s+x=(\d+)\s+y=(\d+)'
-                        r'(?:\s+opacity=([\d.]+))?(?:\s+duration=([\d.]+|full))?',
-                        prompt
-                    )
-                    if not match:
-                        raise ValueError("Invalid image overlay format")
+                        if overlay_type == 'text':
+                                content = match.group(2)
+                                color = match.group(10) or 'white'
+                                fontsize = int(match.group(11)) if match.group(11) else 50
+                                
+                                txt_clip = TextClip(
+                                        content,
+                                        fontsize=fontsize,
+                                        color=color,
+                                        stroke_color='black',
+                                        stroke_width=1
+                                )
+                                duration = duration if duration else video.duration
+                                txt_clip = txt_clip.set_pos((x, y)).set_duration(duration)
+                                processed_clip = CompositeVideoClip([video, txt_clip])
 
-                    path = match.group(1)
-                    x, y = int(match.group(2)), int(match.group(3))
-                    opacity = float(match.group(4)) if match.group(4) else 1.0
-                    duration = float(match.group(5)) if match.group(5) and match.group(5) != 'full' else None
+                        elif overlay_type == 'video':
+                                filename = match.group(3)
+                                if not filename:
+                                        raise ValueError("Path parameter is required for video overlay")
+                                
+                                # Video file handling (unchanged)
+                                path = filename
+                                if not os.path.exists(path):
+                                        auxiliary_path = os.path.join('auxiliary', filename)
+                                        if os.path.exists(auxiliary_path):
+                                                path = auxiliary_path
+                                        else:
+                                                uploads_path = os.path.join('uploads', filename)
+                                                if os.path.exists(uploads_path):
+                                                        path = uploads_path
+                                
+                                if not os.path.exists(path):
+                                        raise ValueError(f"Video file not found: {filename}")
+                                
+                                volume = float(match.group(9)) if match.group(9) else 1.0
+                                overlay_video = VideoFileClip(path)
+                                if volume != 1.0:
+                                        overlay_video = overlay_video.volumex(volume)
+                                if duration and duration < overlay_video.duration:
+                                        overlay_video = overlay_video.subclip(0, duration)
+                                overlay_video = overlay_video.set_pos((x, y))
+                                processed_clip = CompositeVideoClip([video, overlay_video])
 
-                    # Always resolve relative path to uploads folder
-                    if not os.path.isabs(path):
-                        path = os.path.join(app.config['UPLOAD_FOLDER'], path)
-                    if not os.path.exists(path):
-                        raise ValueError(f"Image file not found: {path}")
+                        elif overlay_type == 'image':
+                                filename = match.group(3)
+                                if not filename:
+                                        raise ValueError("Image filename is required (e.g., 'logo.jpg')")
+                                
+                                # Get the ACTUAL path from the selected auxiliary file
+                                if not hasattr(app, 'selected_auxiliary_file'):
+                                        raise ValueError("No auxiliary file selected. Please select an image file first.")
+                                
+                                if not os.path.exists(app.selected_auxiliary_file):
+                                        raise ValueError(f"Selected file not found. Please re-upload '{filename}' via Auxiliary Files.")
+                                
+                                opacity = float(match.group(8)) if match.group(8) else 1.0
+                                img_clip = ImageClip(app.selected_auxiliary_file).set_opacity(opacity)
+                                duration = duration if duration else video.duration
+                                img_clip = img_clip.set_pos((x, y)).set_duration(duration)
+                                processed_clip = CompositeVideoClip([video, img_clip])
 
-                    img_clip = ImageClip(path).set_opacity(opacity)
-                    duration = duration if duration else video.duration
-                    img_clip = img_clip.set_pos((x, y)).set_duration(duration)
-                    processed_clip = CompositeVideoClip([video, img_clip])
+                        else:
+                                raise ValueError("Invalid overlay type")
 
-                # Video overlay
-                elif 'type=video' in prompt:
-                    match = re.search(
-                        r'type=video\s+path=([^\s]+)\s+x=(\d+)\s+y=(\d+)'
-                        r'(?:\s+volume=([\d.]+))?(?:\s+duration=([\d.]+|full))?',
-                        prompt
-                    )
-                    if not match:
-                        raise ValueError("Invalid video overlay format")
+                        output_filename = f"overlay_{int(time.time())}.mp4"
+                        processed_clip.write_videofile(output_filename, codec='libx264', audio_codec='aac')
+                        
+                except Exception as e:
+                        raise ValueError(f"Overlay processing failed: {str(e)}")                
 
-                    path = match.group(1)
-                    x, y = int(match.group(2)), int(match.group(3))
-                    volume = float(match.group(4)) if match.group(4) else 1.0
-                    duration = float(match.group(5)) if match.group(5) and match.group(5) != 'full' else None
-
-                    # Always resolve relative path to uploads folder
-                    if not os.path.isabs(path):
-                        path = os.path.join(app.config['UPLOAD_FOLDER'], path)
-                    if not os.path.exists(path):
-                        raise ValueError(f"Video file not found: {path}")
-
-                    overlay_video = VideoFileClip(path)
-                    if volume != 1.0:
-                        overlay_video = overlay_video.volumex(volume)
-                    if duration and duration < overlay_video.duration:
-                        overlay_video = overlay_video.subclip(0, duration)
-                    
-                    overlay_video = overlay_video.set_pos((x, y))
-                    processed_clip = CompositeVideoClip([video, overlay_video])
-
-                else:
-                    raise ValueError("Invalid overlay type")
-
-                output_filename = f"overlay_{int(time.time())}.mp4"
-            except Exception as e:
-                raise ValueError(f"Overlay processing failed: {str(e)}")
-        # Merge Processing
         elif prompt.startswith('merge_videos'):
             try:
                 match = re.search(r'files=([^\s]+(?:,[^\s]+)*)', prompt)
@@ -2980,6 +2981,7 @@ def handle_video_processing(input_path, prompt):
     finally:
         if video:
             video.close()
+
 
 
 if __name__ == '__main__':
