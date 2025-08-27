@@ -32,6 +32,7 @@ from moviepy.video.fx import all as vfx
 from PIL import Image, ImageEnhance
 import psutil
 import os
+from moviepy.editor import VideoFileClip
 from moviepy.editor import (
     VideoFileClip,
     TextClip,  # Add this import
@@ -2716,18 +2717,20 @@ def handle_video_processing(input_path, prompt):
                 try:
                         # Parse the overlay command
                         match = re.search(
-                                r'overlay\s+type=(text|image|video)\s+'
-                                r'(?:content="([^"]+)"\s+)?'
-                                r'(?:path="([^"]+)"\s+)?'
-                                r'x=(\d+)\s+y=(\d+)\s+'
-                                r'(?:duration=([\d.]+)\s+)?'
-                                r'(?:position=(top|bottom|center|left|right|center-left|center-right)\s+)?'
-                                r'(?:opacity=([\d.]+)\s+)?'
-                                r'(?:volume=([\d.]+)\s+)?'
-                                r'(?:color=(\w+)\s+)?'
-                                r'(?:fontsize=(\d+)\s+)?',
-                                prompt
+                            r'overlay\s+type=(?P<type>text|image|video)'
+                            r'(?:\s+content="(?P<content>[^"]+)")?'
+                            r'(?:\s+path="(?P<path>[^"]+)")?'
+                            r'(?:\s+x=(?P<x>\d+))?'
+                            r'(?:\s+y=(?P<y>\d+))?'
+                            r'(?:\s+duration=(?P<duration>[\d.]+))?'
+                            r'(?:\s+position=(?P<position>\w+))?'
+                            r'(?:\s+opacity=(?P<opacity>[\d.]+))?'
+                            r'(?:\s+volume=(?P<volume>[\d.]+))?'
+                            r'(?:\s+color=(?P<color>\w+))?'
+                            r'(?:\s+fontsize=(?P<fontsize>\d+))?',
+                            prompt
                         )
+
 
                         if not match:
                                 raise ValueError("Invalid overlay command format")
@@ -2782,22 +2785,25 @@ def handle_video_processing(input_path, prompt):
                                 processed_clip = CompositeVideoClip([video, overlay_video])
 
                         elif overlay_type == 'image':
-                                filename = match.group(3)
-                                if not filename:
-                                        raise ValueError("Image filename is required (e.g., 'logo.jpg')")
-                                
-                                # Get the ACTUAL path from the selected auxiliary file
-                                if not hasattr(app, 'selected_auxiliary_file'):
-                                        raise ValueError("No auxiliary file selected. Please select an image file first.")
-                                
-                                if not os.path.exists(app.selected_auxiliary_file):
-                                        raise ValueError(f"Selected file not found. Please re-upload '{filename}' via Auxiliary Files.")
-                                
-                                opacity = float(match.group(8)) if match.group(8) else 1.0
-                                img_clip = ImageClip(app.selected_auxiliary_file).set_opacity(opacity)
-                                duration = duration if duration else video.duration
-                                img_clip = img_clip.set_pos((x, y)).set_duration(duration)
-                                processed_clip = CompositeVideoClip([video, img_clip])
+                            filename = match.group(3)
+                            if not filename:
+                                raise ValueError("Image filename is required (e.g., 'logo.jpg')")
+
+                            path = filename
+                            if not os.path.exists(path):
+                                raise ValueError(f"Image file not found: {filename}")
+
+                            overlay_img = ImageClip(path)
+
+                            # ✅ Always set duration
+                            img_duration = duration if duration else video.duration
+                            overlay_img = overlay_img.set_duration(img_duration)
+
+                            # Positioning
+                            overlay_img = overlay_img.set_pos((x, y))
+
+                            processed_clip = CompositeVideoClip([video, overlay_img])
+
 
                         else:
                                 raise ValueError("Invalid overlay type")
@@ -2806,38 +2812,35 @@ def handle_video_processing(input_path, prompt):
                         processed_clip.write_videofile(output_filename, codec='libx264', audio_codec='aac')
                         
                 except Exception as e:
-                        raise ValueError(f"Overlay processing failed: {str(e)}")                
-
+                        raise ValueError(f"Overlay processing failed: {str(e)}")        
         elif prompt.startswith('merge_videos'):
             try:
                 match = re.search(r'files=([^\s]+(?:,[^\s]+)*)', prompt)
                 if not match:
-                    raise ValueError("Invalid merge format. Example: 'merge_videos files=clip2.mp4,clip3.mp4'")
+                    raise ValueError("Invalid merge format. Example: 'merge_videos files=C:\\path\\clip1.mp4,C:\\path\\clip2.mp4'")
                 
-                files = [f.strip() for f in match.group(1).split(',')]
-                main_video_name = os.path.basename(input_path)
-                # Avoid duplicating the main video if it's listed in files
-                clips = [video] if main_video_name not in files else []
+                files = [f.strip().strip('"').strip("'") for f in match.group(1).split(',')]
+                clips = []
 
-                # Load and validate additional clips
+                # Load and validate clips directly from given paths
                 for f in files:
-                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], f) if not os.path.isabs(f) else f
+                    file_path = os.path.abspath(f)
                     print(f"Trying to load: {file_path}")  # Debug print
                     if not os.path.exists(file_path):
-                        raise ValueError(f"File not found: {f} (Looked in: {file_path})")
+                        raise ValueError(f"File not found: {file_path}")
                     try:
                         clip = VideoFileClip(file_path)
                         if clip is None or not hasattr(clip, 'get_frame'):
-                            raise ValueError(f"Failed to load video file: {f}")
+                            raise ValueError(f"Failed to load video file: {file_path}")
                         print(f"Loaded {f}: duration={clip.duration}, size={clip.size}")  # Debug print
                         clips.append(clip)
                     except Exception as e:
-                        raise ValueError(f"Invalid video file {f}: {str(e)}")
+                        raise ValueError(f"Invalid video file {file_path}: {str(e)}")
 
                 if len(clips) < 2:
                     raise ValueError("At least two videos are required for merging.")
 
-                # Ensure all clips have the same size
+                # Resize to match largest resolution
                 target_w = max(c.w for c in clips)
                 target_h = max(c.h for c in clips)
                 target_size = (target_w, target_h)
@@ -2871,7 +2874,6 @@ def handle_video_processing(input_path, prompt):
                     ffmpeg_params=['-crf', '23']
                 )
 
-                # Verify output was created
                 if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
                     raise RuntimeError("Output file not generated")
                 
@@ -2880,8 +2882,7 @@ def handle_video_processing(input_path, prompt):
             except Exception as e:
                 raise ValueError(f"Video processing error: {str(e)}")
             finally:
-                # Close all loaded clips except the main video (already closed in outer finally)
-                for clip in clips[1:] if len(clips) > 1 else []:
+                for clip in clips if 'clips' in locals() else []:
                     try:
                         clip.close()
                     except Exception:
@@ -2891,6 +2892,7 @@ def handle_video_processing(input_path, prompt):
                         processed_clip.close()
                     except Exception:
                         pass
+
         # Add Transition (for single video)
         elif prompt.startswith('transition'):
             match = re.search(r'type=(\w+)\s+duration=([\d.]+)', prompt)
