@@ -49,4 +49,9 @@ def handler(request):
             'headers': {
                 'Content-Type': 'text/plain',
             }
-        } 
+        }
+
+# ✅ Add this block for Render
+if __name__ == "_main_":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
