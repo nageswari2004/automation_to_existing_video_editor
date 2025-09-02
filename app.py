@@ -2985,37 +2985,24 @@ def handle_video_processing(input_path, prompt):
 
 @app.route("/process", methods=["POST"])
 def process_video():
-    from moviepy.editor import VideoFileClip
-    import os
+    file = request.files["file"]
+    input_path = os.path.join("uploads", file.filename)
+    output_path = os.path.join("outputs", "output.mp4")
 
-    # Get uploaded file
-    file = request.files["video"]
-    input_path = "input.mp4"
-    output_path = "output.mp4"
-
-    # Save uploaded file locally
+    # Save uploaded file
     file.save(input_path)
 
-    # Load video
-    clip = VideoFileClip(input_path)
+    # Run FFmpeg (lighter than MoviePy)
+    subprocess.run([
+        "ffmpeg", "-i", input_path,
+        "-vf", "scale=480:-1",
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-crf", "28",
+        output_path
+    ], check=True)
 
-    # (Optional) Example processing
-    # clip = clip.subclip(0, 10)
-
-    # ✅ Optimized export
-    clip.write_videofile(
-        output_path,
-        codec="libx264",
-        fps=24,
-        preset="ultrafast",
-        threads=1,
-        ffmpeg_params=["-crf", "28", "-vf", "scale=640:-1"]
-    )
-
-    clip.close()
-
-    # Send back the processed file
     return send_file(output_path, as_attachment=True)
+
 
 
 
