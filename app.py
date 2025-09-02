@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session, flash
 import os
+os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from functools import wraps
