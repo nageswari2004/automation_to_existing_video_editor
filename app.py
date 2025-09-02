@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session, flash
-import moviepy.editor as mp
 import os
 from pathlib import Path
 from werkzeug.utils import secure_filename
