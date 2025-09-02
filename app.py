@@ -1,12 +1,4 @@
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session, flash
-app = Flask(__name__)
-@app.route("/process", methods=["POST"])
-def process_video():
-    from moviepy.editor import VideoFileClip  # load only when needed
-    file = request.files["video"]
-    clip = VideoFileClip(file)
-    # ... do processing ...
-    return jsonify({"status": "done"})
 import moviepy.editor as mp
 import os
 from pathlib import Path
@@ -2992,6 +2984,13 @@ def handle_video_processing(input_path, prompt):
         if video:
             video.close()
 
+@app.route("/process", methods=["POST"])
+def process_video():
+    from moviepy.editor import VideoFileClip  # import only when needed
+    file = request.files["video"]
+    clip = VideoFileClip(file)
+    # Do processing here
+    return "done"
 
 
 if __name__ == '__main__':
